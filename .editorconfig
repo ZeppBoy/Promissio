@@ -1,0 +1,27 @@
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[csharp]
+dotnet_sort_system_directives_first = true
+csharp_prefer_braces = true
+csharp_prefer_expression_bodied_methods = false
+csharp_prefer_expression_bodied_properties = false
+csharp_prefer_out_variableDeclaration = true
+csharp_style_pattern_matching_over_as_with_null_check = true
+csharp_style_pattern_matching_over_is_with_null_check = true
+csharp_style_pattern_limited_objects = true
+csharp_style_inlined_declARATION = false
+csharp_style_expression_bodied_lambdas = true
+csharp_style_expression_bodied_local_functions = false
+csharp_style_deconstructed_variableDeclaration = true
+csharp_prefer_params = true
+csharp_prefer_generic_delegate_in_declaration = true
+csharp_prefer_collection_expression = true
+
+[**/Directory.Build.props]
+dotnet_generate_csp_project_file = false

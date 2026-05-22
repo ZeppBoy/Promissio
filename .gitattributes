@@ -1,0 +1,10 @@
+*.cs diff=csharp
+*.md diff=markdown
+*.yml diff=yaml
+*.json diff=json
+*.xml diff=xml
+
+*.* text=auto
+
+*.sln export-ignore
+*.slnx export-ignore
