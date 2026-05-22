@@ -15,5 +15,6 @@
     <Project Path="tests/Promissio.Application.Tests/Promissio.Application.Tests.csproj" />
     <Project Path="tests/Promissio.Domain.Tests/Promissio.Domain.Tests.csproj" />
     <Project Path="tests/Promissio.Integration.Tests/Promissio.Integration.Tests.csproj" />
+    <Project Path="tests/Promissio.AI.Evals/Promissio.AI.Evals.csproj" />
   </Folder>
 </Solution>

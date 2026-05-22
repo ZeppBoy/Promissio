@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
@@ -16,8 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Promissio.Domain\Promissio.Domain.csproj" />
-    <ProjectReference Include="..\Promissio.Application\Promissio.Application.csproj" />
+    <ProjectReference Include="..\..\src\Promissio.Domain\Promissio.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Promissio.Application\Promissio.Application.csproj" />
   </ItemGroup>
 
 </Project>

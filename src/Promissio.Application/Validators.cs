@@ -9,7 +9,7 @@ public class LoanApplicationValidator : AbstractValidator<LoanApplication>
         RuleFor(x => x.Amount)
             .GreaterThan(0)
             .WithMessage("Loan amount must be positive");
-            
+
         RuleFor(x => x.TermInMonths)
             .GreaterThan(0)
             .WithMessage("Loan term must be greater than zero");

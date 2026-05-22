@@ -1,5 +1,5 @@
-using Microsoft.Extensions.DependencyInjection;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Promissio.Infrastructure;
 

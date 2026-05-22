@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(dotnet test *)",
-      "Bash(dotnet format *)"
+      "Bash(dotnet format *)",
+      "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git restore *)",
+      "Bash(git commit *)"
     ]
   }
 }

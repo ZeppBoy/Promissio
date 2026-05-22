@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Promissio.Domain\Promissio.Domain.csproj" />
-    <ProjectReference Include="..\Promissio.Infrastructure\Promissio.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -12,7 +11,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

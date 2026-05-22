@@ -208,7 +208,7 @@ For detailed C4 diagrams, see [`docs/architecture/`](./docs/architecture/) (popu
 
 ### Prerequisites
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download)
+- [.NET 9 SDK](https://dotnet.microsoft.com/download) (or .NET 10 preview)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) or compatible container runtime
 - [JetBrains Rider](https://www.jetbrains.com/rider/) recommended; VS Code or Visual Studio 2022+ also work
 
@@ -226,7 +226,7 @@ That should bring up:
 
 - PostgreSQL 16 on port 5432
 - Qdrant on port 6333
-- Langfuse on port 3000
+- (Langfuse — see docs/mcp/ for self-hosting setup)
 - Jaeger UI on port 16686
 
 Then start one of the services:

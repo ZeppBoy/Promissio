@@ -282,4 +282,19 @@ None of these are large changes. Together they would bring Phase 0 from "scaffol
 
 ---
 
-*End of Phase 0 analysis. This report reflects the repository state at 2026-05-22 on branch `main`.*
+## 7. Fixes Applied (2026-05-22)
+
+All gaps identified in this report have been addressed:
+
+| Issue | Fix Applied |
+|---|---|
+| §4.1 Layering violation | Removed `Promissio.Infrastructure` reference from `Promissio.Application.csproj`. Application now only references Domain, as intended. |
+| §4.2 Format violations | Ran `dotnet format` — all files pass `--verify-no-changes`. CI will now succeed on the format gate. |
+| §4.3 AI.Evals misconfigured | Fixed project-reference paths to `..\..\src\Promissio.Domain\...` and `..\..\src\Promissio.Application\...`. Added project to `Promissio.slnx`. |
+| §4.4 .NET version inconsistency | Reverted all csprojs and `Directory.Build.props` to `net9.0`, matching the plan's stated current target. CI workflow updated to `9.0.x`. README note added that .NET 10 preview is also supported. |
+| §5.5 Langfuse docker-compose | Removed broken Langfuse service block (missing ClickHouse, incomplete env vars). Service can be re-added later with a correct configuration. |
+| §5.6 `.editorconfig` typos | Rewrote file with corrected keys: removed `[csharp]` duplicate section header, fixed mixed-case keys (`variableDeclaration`, `inlined_declARATION`), removed invalid `dotnet_generate_csp_project_file` entry. |
+| §5.7 Stray directory tree | Deleted `src/Promissio.Domain/src/Promissio.Application/src/` — scaffolding artifact. |
+| §5.8 WeatherForecast scaffolds | Replaced boilerplate `Program.cs` in both API projects with minimal startup (builder → build → run). |
+
+**Verification:** `dotnet build` succeeds with 0 errors / 0 warnings. `dotnet test` passes (2 smoke tests pass; 4 empty test projects produce expected "no tests available" messages). `dotnet format --verify-no-changes` passes cleanly.
