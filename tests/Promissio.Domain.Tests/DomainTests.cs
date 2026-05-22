@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Promissio.Domain;
 
 namespace Promissio.Domain.Tests;
@@ -9,8 +8,6 @@ public class DomainTests
     public void TestDomainService()
     {
         var service = new DomainService();
-        var currentDate = service.GetCurrentDate();
-        
-        Assert.NotNull(currentDate);
+        Assert.NotNull(service.GetCurrentDate());
     }
 }
