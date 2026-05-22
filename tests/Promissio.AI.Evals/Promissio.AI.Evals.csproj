@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Promissio.AI\Promissio.AI.csproj" />
+    <ProjectReference Include="..\..\src\Promissio.Domain\Promissio.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Promissio.Application\Promissio.Application.csproj" />
+    <ProjectReference Include="..\..\src\Promissio.Infrastructure\Promissio.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

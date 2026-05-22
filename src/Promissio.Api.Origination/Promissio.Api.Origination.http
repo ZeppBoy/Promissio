@@ -1,0 +1,6 @@
+@Promissio.Api.Origination_HostAddress = http://localhost:5062
+
+GET {{Promissio.Api.Origination_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
