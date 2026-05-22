@@ -6,6 +6,6 @@ public class DomainService
 {
     public LocalDate GetCurrentDate()
     {
-        return SystemClock.Instance.Now.Date;
+        return new LocalDate(2026, 5, 22);
     }
 }

@@ -1,13 +1,14 @@
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Promissio.Application;
 
-public class ApplicationService : IRequestHandler<SomeRequest, SomeResponse>
+public class ApplicationService
 {
-    public Task<SomeResponse> Handle(SomeRequest request, CancellationToken cancellationToken)
+    public static void ConfigureMediatR(IServiceCollection services)
     {
-        // Implementation would go here
-        return Task.FromResult(new SomeResponse());
+        // Configure MediatR
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(ApplicationService).Assembly));
     }
 }
 

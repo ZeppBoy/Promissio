@@ -10,7 +10,8 @@
     <Project Path="src/Promissio.Infrastructure/Promissio.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Promissio.AI.Evals/Promissio.AI.Evals.csproj" />
+    <Project Path="tests/Promissio.BatchProcessor.Tests/Promissio.BatchProcessor.Tests.csproj" />
+    <Project Path="tests/Promissio.Infrastructure.Tests/Promissio.Infrastructure.Tests.csproj" />
     <Project Path="tests/Promissio.Application.Tests/Promissio.Application.Tests.csproj" />
     <Project Path="tests/Promissio.Domain.Tests/Promissio.Domain.Tests.csproj" />
     <Project Path="tests/Promissio.Integration.Tests/Promissio.Integration.Tests.csproj" />

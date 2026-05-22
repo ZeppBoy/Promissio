@@ -1,4 +1,5 @@
 using Promissio.Infrastructure;
+using Xunit;
 
 namespace Promissio.Infrastructure.Tests;
 

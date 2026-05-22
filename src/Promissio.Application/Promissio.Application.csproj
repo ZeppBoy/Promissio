@@ -1,13 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Promissio.Domain\Promissio.Domain.csproj" />
     <ProjectReference Include="..\Promissio.Infrastructure\Promissio.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="Mapster" Version="10.0.7" />
-    <PackageReference Include="MediatR" Version="14.1.0" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Mapster" />
+    <PackageReference Include="MediatR" />
   </ItemGroup>
 
   <PropertyGroup>

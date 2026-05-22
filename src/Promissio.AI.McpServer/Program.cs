@@ -1,13 +1,7 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddOpenApi();
-
-// Configure MCP server
-builder.Services.AddMcpServer();
 
 var app = builder.Build();
 
@@ -16,5 +10,7 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+app.UseHttpsRedirection();
 
 app.Run();
