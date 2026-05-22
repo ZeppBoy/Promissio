@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Promissio.Domain/Promissio.Domain.csproj" />
+    <PackageReference Include="FsCheck.Xunit" />
   </ItemGroup>
 
 </Project>
