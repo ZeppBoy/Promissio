@@ -14,6 +14,10 @@ public abstract class InterestRate : IEquatable<InterestRate>
 
     public bool Equals(InterestRate? other) => other != null && this.GetType() == other.GetType() && this.Rate == other.Rate;
 
+    public static bool operator ==(InterestRate? left, InterestRate? right) => Equals(left, right);
+
+    public static bool operator !=(InterestRate? left, InterestRate? right) => !Equals(left, right);
+
     public override bool Equals(object? obj) => Equals(obj as InterestRate);
 
     public override int GetHashCode() => HashCode.Combine(GetType(), Rate);
