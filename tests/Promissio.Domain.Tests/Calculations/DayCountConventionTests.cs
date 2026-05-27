@@ -170,7 +170,7 @@ public class ActualActualTests
 
         bool isLeapYear = (startYear % 4 == 0 && startYear % 100 != 0) || startYear % 400 == 0;
         int yearDays = isLeapYear ? 366 : 365;
-        Decimal expected = expectedDays / yearDays;
+        Decimal expected = expectedDays / (Decimal)yearDays;
         fraction.Should().Be(expected);
     }
 

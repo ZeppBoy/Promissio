@@ -22,5 +22,6 @@
   <PackageVersion Include="Testcontainers" Version="4.1.0" />
     <PackageVersion Include="FsCheck" Version="3.0.0" />
     <PackageVersion Include="FsCheck.Xunit" Version="3.0.0" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
   </ItemGroup>
 </Project>

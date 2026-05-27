@@ -24,7 +24,7 @@ public sealed class ActualActual : DayCountConvention
         if (startDate.Year == endDate.Year)
         {
             int daysInYear = IsLeapYear(startDate.Year) ? 366 : 365;
-            return totalDays / daysInYear;
+            return totalDays / (Decimal)daysInYear;
         }
 
         Decimal fraction = 0m;
@@ -38,7 +38,7 @@ public sealed class ActualActual : DayCountConvention
             if (nextYear > endDate) nextYear = endDate;
 
             int daysInSegment = (nextYear.ToDateTimeUnspecified() - current.ToDateTimeUnspecified()).Days;
-            fraction += daysInSegment / daysInYear;
+            fraction += daysInSegment / (Decimal)daysInYear;
 
             current = nextYear;
         }
