@@ -1,20 +1,2 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Promissio.AI.McpServer/Promissio.AI.McpServer.csproj" />
-    <Project Path="src/Promissio.AI/Promissio.AI.csproj" />
-    <Project Path="src/Promissio.Api.Origination/Promissio.Api.Origination.csproj" />
-    <Project Path="src/Promissio.Api.Servicing/Promissio.Api.Servicing.csproj" />
-    <Project Path="src/Promissio.Application/Promissio.Application.csproj" />
-    <Project Path="src/Promissio.BatchProcessor/Promissio.BatchProcessor.csproj" />
-    <Project Path="src/Promissio.Domain/Promissio.Domain.csproj" />
-    <Project Path="src/Promissio.Infrastructure/Promissio.Infrastructure.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/Promissio.BatchProcessor.Tests/Promissio.BatchProcessor.Tests.csproj" />
-    <Project Path="tests/Promissio.Infrastructure.Tests/Promissio.Infrastructure.Tests.csproj" />
-    <Project Path="tests/Promissio.Application.Tests/Promissio.Application.Tests.csproj" />
-    <Project Path="tests/Promissio.Domain.Tests/Promissio.Domain.Tests.csproj" />
-    <Project Path="tests/Promissio.Integration.Tests/Promissio.Integration.Tests.csproj" />
-    <Project Path="tests/Promissio.AI.Evals/Promissio.AI.Evals.csproj" />
-  </Folder>
 </Solution>

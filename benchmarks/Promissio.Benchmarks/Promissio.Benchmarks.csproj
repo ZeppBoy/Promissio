@@ -10,7 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../src/Promissio.Domain/Promissio.Domain.csproj" />
+    <ProjectReference Include="../../src/Promissio.Domain/Promissio.Domain.csproj" />
     <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="NodaTime" />
   </ItemGroup>
 </Project>

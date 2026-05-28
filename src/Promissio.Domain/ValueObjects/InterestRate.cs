@@ -1,3 +1,4 @@
+using System.Linq;
 using NodaTime;
 using Promissio.Domain.Calculations.DayCounts;
 
@@ -12,13 +13,14 @@ public abstract class InterestRate : IEquatable<InterestRate>
 
     public abstract Money CalculateInterest(Money principal, LocalDate startDate, LocalDate endDate);
 
-    public bool Equals(InterestRate? other) => other != null && this.GetType() == other.GetType() && this.Rate == other.Rate;
+    public bool Equals(InterestRate? other) => Equals((object?) other);
 
-    public static bool operator ==(InterestRate? left, InterestRate? right) => Equals(left, right);
+    public static bool operator ==(InterestRate? left, InterestRate? right) => object.Equals(left, right);
 
-    public static bool operator !=(InterestRate? left, InterestRate? right) => !Equals(left, right);
+    public static bool operator !=(InterestRate? left, InterestRate? right) => !object.Equals(left, right);
 
-    public override bool Equals(object? obj) => Equals(obj as InterestRate);
+    public override bool Equals(object? obj) => ReferenceEquals(this, obj)
+        || obj is InterestRate other && GetType() == other.GetType() && Rate == other.Rate;
 
     public override int GetHashCode() => HashCode.Combine(GetType(), Rate);
 }
@@ -38,11 +40,18 @@ public sealed class FixedRate(Percentage rate, DayCountConvention dayCountConven
         return principal * (Rate.Fraction * dayCountFraction);
     }
 
+    public override bool Equals(object? obj) => obj is FixedRate other
+        && Rate == other.Rate
+        && DayCountConvention.Equals(other.DayCountConvention);
+
+    public override int GetHashCode() => HashCode.Combine(Rate, DayCountConvention);
+
     public override string ToString() => $"FixedRate({Rate}, {DayCountConvention})";
 }
 
 /// <summary>
 /// Floating interest rate based on a reference rate plus a fixed margin.
+/// TODO: Phase N — add reset schedule parameter for re-pricing logic (per 00-core.md spec).
 /// </summary>
 public sealed class FloatingRate(Percentage baseRate, Percentage margin, DayCountConvention dayCountConvention) : InterestRate
 {
@@ -59,6 +68,14 @@ public sealed class FloatingRate(Percentage baseRate, Percentage margin, DayCoun
         Decimal dayCountFraction = DayCountConvention.Fraction(startDate, endDate);
         return principal * (Rate.Fraction * dayCountFraction);
     }
+
+    public override bool Equals(object? obj) => obj is FloatingRate other
+        && Rate == other.Rate
+        && BaseRate == other.BaseRate
+        && Margin == other.Margin
+        && DayCountConvention.Equals(other.DayCountConvention);
+
+    public override int GetHashCode() => HashCode.Combine(Rate, BaseRate, Margin, DayCountConvention);
 
     public override string ToString() => $"FloatingRate(base={BaseRate}, margin={Margin}, total={Rate})";
 }
@@ -91,6 +108,19 @@ public sealed class TieredRate(IList<TieredRate.Tier> tiers, DayCountConvention 
         Percentage effectiveRate = EffectiveRateForBalance(principal);
         Decimal dayCountFraction = DayCountConvention.Fraction(startDate, endDate);
         return principal * (effectiveRate.Fraction * dayCountFraction);
+    }
+
+    public override bool Equals(object? obj) => obj is TieredRate other
+        && DayCountConvention.Equals(other.DayCountConvention)
+        && Tiers.SequenceEqual(other.Tiers);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var tier in Tiers)
+            hash.Add(tier);
+        hash.Add(DayCountConvention);
+        return hash.ToHashCode();
     }
 
     public override string ToString() => $"TieredRate(tiers: {string.Join(", ", Tiers)})";
@@ -129,6 +159,12 @@ public sealed class EffectiveRate(Percentage rate, DayCountConvention dayCountCo
         Decimal dayCountFraction = DayCountConvention.Fraction(startDate, endDate);
         return principal * (Rate.Fraction * dayCountFraction);
     }
+
+    public override bool Equals(object? obj) => obj is EffectiveRate other
+        && Rate == other.Rate
+        && DayCountConvention.Equals(other.DayCountConvention);
+
+    public override int GetHashCode() => HashCode.Combine(Rate, DayCountConvention);
 
     public override string ToString() => $"EffectiveRate({Rate})";
 }

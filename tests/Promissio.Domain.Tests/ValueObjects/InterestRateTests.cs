@@ -69,4 +69,42 @@ public class InterestRateTests
 
         interest.Amount.Should().BeInRange(360m, 380m);
     }
+
+    [Fact]
+    public void FixedRate_Equality_DifferentDayCount_NotEqual()
+    {
+        var a = new FixedRate(Percentage.FromPercent(5m), new Actual360());
+        var b = new FixedRate(Percentage.FromPercent(5m), new Actual365());
+
+        a.Should().NotBe(b);
+    }
+
+    [Fact]
+    public void FixedRate_Equality_Null_False()
+    {
+        var rate = new FixedRate(Percentage.FromPercent(5m), CreateDayCount());
+
+        rate.Equals(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void InterestRate_Equality_SameInstance_True()
+    {
+        var rate = new FixedRate(Percentage.FromPercent(5m), CreateDayCount());
+
+        rate.Equals(rate).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TieredRate_BalanceExactlyAtUpperLimit_UsesFirstTier()
+    {
+        var tier1 = new TieredRate.Tier(Percentage.FromPercent(3m), new Money(10000m, "USD"));
+        var tier2 = new TieredRate.Tier(Percentage.FromPercent(5m), new Money(50000m, "USD"));
+
+        var rate = new TieredRate(new[] { tier1, tier2 }, CreateDayCount());
+
+        var effectiveRate = rate.EffectiveRateForBalance(new Money(10000m, "USD"));
+
+        effectiveRate.AsPercent.Should().Be(3m);
+    }
 }

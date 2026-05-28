@@ -1,0 +1,13 @@
+{
+  "stryker-config": {
+    "solution": "Promissio.sln",
+    "project": "src/Promissio.Domain/Promissio.Domain.csproj",
+    "reporters": ["html", "progress", "json"],
+    "thresholds": {
+      "high": 90,
+      "low": 78,
+      "break": 0
+    },
+    "verbosity": "info"
+  }
+}

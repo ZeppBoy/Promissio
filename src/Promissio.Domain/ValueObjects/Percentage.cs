@@ -19,24 +19,24 @@ public sealed class Percentage(Decimal fraction) : IEquatable<Percentage>
 
     public static Percentage FromPercent(Decimal percent)
     {
-        if (percent < 0 || percent > 100)
-            throw new ArgumentOutOfRangeException(nameof(percent), "Percent must be between 0 and 100.");
+        if (percent < 0)
+            throw new ArgumentOutOfRangeException(nameof(percent), "Percent must be non-negative.");
 
         return new Percentage(percent / 100m);
     }
 
     public static Percentage FromBasisPoints(long basisPoints)
     {
-        if (basisPoints < 0 || basisPoints > 10000)
-            throw new ArgumentOutOfRangeException(nameof(basisPoints), "Basis points must be between 0 and 10000.");
+        if (basisPoints < 0)
+            throw new ArgumentOutOfRangeException(nameof(basisPoints), "Basis points must be non-negative.");
 
         return new Percentage(basisPoints / 10000m);
     }
 
     public static Percentage FromFraction(Decimal fraction)
     {
-        if (fraction < 0 || fraction > 1)
-            throw new ArgumentOutOfRangeException(nameof(fraction), "Fraction must be between 0 and 1.");
+        if (fraction < 0)
+            throw new ArgumentOutOfRangeException(nameof(fraction), "Fraction must be non-negative.");
 
         return new Percentage(fraction);
     }

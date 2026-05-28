@@ -118,7 +118,7 @@ public class InterestCalculatorTests
 
         Action act = () => _calculator.Calculate(principal, rate, startDate, endDate);
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("startDate");
     }
 
     [Fact]
@@ -417,6 +417,41 @@ public class InterestCalculatorTests
         interest.Amount.Should().BeGreaterThan(0m);
         Decimal maxInterest = 10000m * 0.05m * 2m;
         interest.Amount.Should().BeLessOrEqualTo(maxInterest);
+    }
+
+    #endregion
+
+    #region Mutation testing — kill survived mutants
+
+    [Fact]
+    public void Calculate_StartDateAfterEndDate_ThrowsWithCorrectParameterName()
+    {
+        var principal = new Money(10000m, "USD");
+        var rate = new FixedRate(Percentage.FromPercent(5m), new Actual360());
+        var startDate = new LocalDate(2023, 7, 1);
+        var endDate = new LocalDate(2023, 6, 1);
+
+        Action act = () => _calculator.Calculate(principal, rate, startDate, endDate);
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(act);
+        ex.ParamName.Should().Be("startDate");
+        ex.Message.Should().Contain("Start date");
+    }
+
+    [Fact]
+    public void Calculate_TieredRate_BalanceExactlyAtUpperLimit_UsesCorrectTier()
+    {
+        var principal = new Money(10000m, "USD");
+        var tier1 = new TieredRate.Tier(Percentage.FromPercent(3m), new Money(10000m, "USD"));
+        var tier2 = new TieredRate.Tier(Percentage.FromPercent(5m), new Money(50000m, "USD"));
+        var rate = new TieredRate(new[] { tier1, tier2 }.AsReadOnly(), new Actual360());
+        var startDate = new LocalDate(2023, 1, 1);
+        var endDate = new LocalDate(2023, 2, 1);
+
+        Money interest = _calculator.Calculate(principal, rate, startDate, endDate);
+
+        Decimal expected = Math.Round(10000m * 0.03m * (31m / 360m), 2, MidpointRounding.ToEven);
+        interest.Should().Be(new Money(expected, "USD"));
     }
 
     #endregion

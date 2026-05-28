@@ -46,7 +46,7 @@ public sealed class Thirty360 : DayCountConvention
         }
         else
         {
-            if (day == 31 && otherDate.Day < 30) day = 30;
+            if (day == 31 && otherDate.Day >= 30) day = 30;
         }
 
         return day;

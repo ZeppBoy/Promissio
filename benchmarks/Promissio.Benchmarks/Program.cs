@@ -1,5 +1,8 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Loggers;
+using BenchmarkDotNet.Running;
 using NodaTime;
 using Promissio.Domain.Calculations;
 using Promissio.Domain.Calculations.DayCounts;
@@ -8,15 +11,15 @@ using Promissio.Domain.ValueObjects;
 namespace Promissio.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob(RunMode.Evaluate)]
+[SimpleJob]
 public class InterestCalculatorBenchmarks
 {
-    private IInterestCalculator _calculator!;
-    private Money _principal!;
-    private FixedRate _rate!;
-    private DayCountConvention _convention!;
-    private LocalDate _startDate!;
-    private LocalDate _endDate!;
+    private IInterestCalculator _calculator = null!;
+    private Money _principal = null!;
+    private FixedRate _rate = null!;
+    private DayCountConvention _convention = null!;
+    private LocalDate _startDate = default!;
+    private LocalDate _endDate = default!;
 
     [GlobalSetup]
     public void Setup()
@@ -32,7 +35,7 @@ public class InterestCalculatorBenchmarks
     [Benchmark]
     public Money Calculate_SinglePeriod()
     {
-        return _calculator.Calculate(_principal, _rate, _convention, _startDate, _endDate);
+        return _calculator.Calculate(_principal, _rate, _startDate, _endDate);
     }
 
     [Benchmark(Baseline = true)]
@@ -74,11 +77,11 @@ public class InterestCalculatorBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob(RunMode.Evaluate)]
+[SimpleJob]
 public class MoneyBenchmarks
 {
-    private Money _a!;
-    private Money _b!;
+    private Money _a = null!;
+    private Money _b = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -111,7 +114,11 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        BenchmarkRunner.Run<InterestCalculatorBenchmarks>();
-        BenchmarkRunner.Run<MoneyBenchmarks>();
+        var config = new ManualConfig()
+            .WithArtifactsPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "results"))
+            .AddLogger(ConsoleLogger.Default);
+
+        BenchmarkRunner.Run<InterestCalculatorBenchmarks>(config);
+        BenchmarkRunner.Run<MoneyBenchmarks>(config);
     }
 }

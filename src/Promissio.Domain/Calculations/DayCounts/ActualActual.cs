@@ -28,14 +28,14 @@ public sealed class ActualActual : DayCountConvention
         }
 
         Decimal fraction = 0m;
-
         LocalDate current = startDate;
         while (current.Year < endDate.Year)
         {
             int daysInYear = IsLeapYear(current.Year) ? 366 : 365;
             LocalDate nextYear = current.PlusYears(1);
 
-            if (nextYear > endDate) nextYear = endDate;
+            if (nextYear > endDate)
+                nextYear = endDate;
 
             int daysInSegment = (nextYear.ToDateTimeUnspecified() - current.ToDateTimeUnspecified()).Days;
             fraction += daysInSegment / (Decimal)daysInYear;

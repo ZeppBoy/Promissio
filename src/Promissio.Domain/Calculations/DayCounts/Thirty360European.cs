@@ -9,8 +9,7 @@ namespace Promissio.Domain.Calculations.DayCounts;
 /// Similar to 30/360 but with different end-of-month handling.
 /// Date adjustment rules per ISDA 2006 Definitions:
 /// - If D1 = 31, set D1 = 30.
-/// - If D2 = 31 and D1 = 30 (or D1 > 29), set D2 = 30.
-/// The European version also treats Feb 29 as Feb 30 adjusted to 30.
+/// - If D2 = 31, set D2 = 30 (unconditional).
 /// Formula: (Y2 - Y1) * 360 + (M2 - M1) * 30 + (D2 - D1) / 360
 /// Used in European bonds and ISDA derivatives.
 /// Reference: ISDA 2006 Definitions, Section 4.16; also known as 30E/360 or Euro 30/360.

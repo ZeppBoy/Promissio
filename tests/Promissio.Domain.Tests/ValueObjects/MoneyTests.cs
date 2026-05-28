@@ -194,4 +194,171 @@ public class MoneyTests
 
         (money + zero).Should().Be(money);
     }
+
+    [Fact]
+    public void Comparison_LessThan_EqualAmounts_ReturnsFalse()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(100m, "USD");
+
+        (a < b).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Comparison_GreaterThan_EqualAmounts_ReturnsFalse()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(100m, "USD");
+
+        (a > b).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Comparison_LessOrEqual_EqualAmounts_ReturnsTrue()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(100m, "USD");
+
+        (a <= b).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Comparison_GreaterOrEqual_EqualAmounts_ReturnsTrue()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(100m, "USD");
+
+        (a >= b).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Comparison_DifferentCurrencies_ThrowsInvalidOperationException()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(50m, "EUR");
+
+        Action action = () => { var _ = a < b; };
+        action.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Equals_WithNull_ReturnsFalse()
+    {
+        var money = new Money(100m, "USD");
+
+        money.Equals((Money)null!).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Equality_Null_LeftSide_ReturnsFalse()
+    {
+        Money? a = null;
+        Money b = new Money(100m, "USD");
+
+        (a == b).Should().BeFalse();
+        (b == a).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Inequality_BothNull_ReturnsTrue()
+    {
+        Money? a = null;
+        Money? b = null;
+
+        (a == b).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Subtraction_DifferentCurrencies_ThrowsInvalidOperationException()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(50m, "EUR");
+
+        Action action = () => { var _ = a - b; };
+        action.Should().Throw<InvalidOperationException>().WithMessage("*Cannot subtract EUR from USD*");
+    }
+
+    [Fact]
+    public void ToString_ReturnsExpectedFormat()
+    {
+        var money = new Money(1234.56m, "USD");
+
+        string str = money.ToString();
+
+        str.Should().Be("1234.56 USD");
+    }
+
+     [Fact]
+    public void ToString_NegativeAmount_IncludesMinusSign()
+    {
+        var money = new Money(-100m, "EUR");
+
+        string str = money.ToString();
+
+        str.Should().Contain("-");
+    }
+
+    [Fact]
+    public void ToString_ContainsAmountAndCurrency()
+    {
+        var money = new Money(99.99m, "JPY");
+
+        string str = money.ToString();
+
+        str.Should().Contain("99.99");
+        str.Should().Contain("JPY");
+    }
+
+    [Fact]
+    public void Add_DifferentCurrencies_ThrowsWithCorrectMessage()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(50m, "EUR");
+
+        Action action = () => { var _ = a + b; };
+
+        action.Should().Throw<InvalidOperationException>().WithMessage("*Cannot add*to*");
+    }
+
+    [Fact]
+    public void Subtract_DifferentCurrencies_ThrowsWithCorrectMessage()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(50m, "EUR");
+
+        Action action = () => { var _ = a - b; };
+
+        action.Should().Throw<InvalidOperationException>().WithMessage("*Cannot subtract*from*");
+    }
+
+    [Fact]
+    public void Division_ByZero_MessageContainsExactText()
+    {
+        var money = new Money(100m, "USD");
+
+        Action action = () => { var _ = money / 0m; };
+
+        action.Should().Throw<DivideByZeroException>().WithMessage("*Cannot divide money by zero*");
+    }
+
+    [Fact]
+    public void Comparison_DifferentCurrencies_MessageContainsExactText()
+    {
+        var a = new Money(100m, "USD");
+        var b = new Money(50m, "EUR");
+
+        Action action = () => { var _ = a < b; };
+
+        action.Should().Throw<InvalidOperationException>().WithMessage("*Cannot compare*with*");
+    }
+
+    [Fact]
+    public void ToString_ContainsDecimalFormat()
+    {
+        var money = new Money(100m, "USD");
+
+        string str = money.ToString();
+
+        str.Should().Contain("100.00");
+    }
 }
