@@ -18,7 +18,7 @@ public sealed class ActualActual : DayCountConvention
 
     public override Decimal Fraction(LocalDate startDate, LocalDate endDate)
     {
-        int totalDays = (endDate.ToDateTimeUnspecified() - startDate.ToDateTimeUnspecified()).Days;
+        int totalDays = Period.Between(startDate, endDate, PeriodUnits.Days).Days;
         if (totalDays == 0) return 0m;
 
         if (startDate.Year == endDate.Year)
@@ -37,7 +37,7 @@ public sealed class ActualActual : DayCountConvention
             if (nextYear > endDate)
                 nextYear = endDate;
 
-            int daysInSegment = (nextYear.ToDateTimeUnspecified() - current.ToDateTimeUnspecified()).Days;
+            int daysInSegment = Period.Between(current, nextYear, PeriodUnits.Days).Days;
             fraction += daysInSegment / (Decimal)daysInYear;
 
             current = nextYear;

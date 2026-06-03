@@ -16,7 +16,7 @@ public sealed class Actual365 : DayCountConvention
 
     public override Decimal Fraction(LocalDate startDate, LocalDate endDate)
     {
-        int days = (endDate.ToDateTimeUnspecified() - startDate.ToDateTimeUnspecified()).Days;
+        int days = Period.Between(startDate, endDate, PeriodUnits.Days).Days;
         return days / 365m;
     }
 }

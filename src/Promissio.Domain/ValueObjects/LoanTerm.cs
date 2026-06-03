@@ -8,16 +8,10 @@ namespace Promissio.Domain.ValueObjects;
 /// <remarks>
 /// LoanTerm represents the duration of a loan contract, typically expressed in months.
 /// Uses NodaTime Period for precise calendar arithmetic.
+/// Equality is based on TotalMonths only; Years and Months are derived properties.
 /// </remarks>
-public sealed class LoanTerm : IEquatable<LoanTerm>
+public sealed record LoanTerm
 {
-    private LoanTerm(int totalMonths)
-    {
-        TotalMonths = totalMonths;
-        Years = totalMonths / 12;
-        Months = totalMonths % 12;
-    }
-
     /// <summary>
     /// Total months in the term. For terms with years, this includes converted years.
     /// </summary>
@@ -26,12 +20,17 @@ public sealed class LoanTerm : IEquatable<LoanTerm>
     /// <summary>
     /// Years component of the term.
     /// </summary>
-    public int Years { get; }
+    public int Years => TotalMonths / 12;
 
     /// <summary>
     /// Months component of the term (remaining after years).
     /// </summary>
-    public int Months { get; }
+    public int Months => TotalMonths % 12;
+
+    private LoanTerm(int totalMonths)
+    {
+        TotalMonths = totalMonths;
+    }
 
     public static LoanTerm FromMonths(int months)
     {
@@ -49,24 +48,7 @@ public sealed class LoanTerm : IEquatable<LoanTerm>
         return new LoanTerm(years * 12);
     }
 
-    public LocalDate EndDate(LocalDate startDate)
-    {
-        return startDate.PlusMonths(TotalMonths);
-    }
-
-    #region Equality
-
-    public bool Equals(LoanTerm? other) => other is not null && this.TotalMonths == other.TotalMonths;
-
-    public static bool operator ==(LoanTerm? left, LoanTerm? right) => Equals(left, right);
-
-    public static bool operator !=(LoanTerm? left, LoanTerm? right) => !Equals(left, right);
-
-    public override bool Equals(object? obj) => Equals(obj as LoanTerm);
-
-    public override int GetHashCode() => TotalMonths.GetHashCode();
+    public LocalDate EndDate(LocalDate startDate) => startDate.PlusMonths(TotalMonths);
 
     public override string ToString() => $"LoanTerm({Years}y {Months}m, {TotalMonths} months total)";
-
-    #endregion
 }

@@ -9,10 +9,8 @@ namespace Promissio.Domain.ValueObjects;
 /// Stores internally as a decimal fraction (e.g., 5% = 0.05m).
 /// Provides conversion methods for basis points, fractions, and percent.
 /// </remarks>
-public sealed class Percentage(Decimal fraction) : IEquatable<Percentage>
+public sealed record Percentage(Decimal Fraction)
 {
-    public Decimal Fraction { get; } = fraction;
-
     public Decimal AsPercent => Fraction * 100m;
 
     public long AsBasisPoints => (long)Math.Round(Fraction * 10000m, MidpointRounding.ToEven);
@@ -58,16 +56,6 @@ public sealed class Percentage(Decimal fraction) : IEquatable<Percentage>
     }
 
     #endregion
-
-    public bool Equals(Percentage? other) => other is not null && this.Fraction == other.Fraction;
-
-    public static bool operator ==(Percentage? left, Percentage? right) => Equals(left, right);
-
-    public static bool operator !=(Percentage? left, Percentage? right) => !Equals(left, right);
-
-    public override bool Equals(object? obj) => Equals(obj as Percentage);
-
-    public override int GetHashCode() => HashCode.Combine(Fraction);
 
     public override string ToString() => $"{AsPercent.ToString("F4", CultureInfo.InvariantCulture)}%";
 }

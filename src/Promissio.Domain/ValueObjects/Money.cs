@@ -9,12 +9,23 @@ namespace Promissio.Domain.ValueObjects;
 /// Money is a value object: equality is based on amount and currency, not reference identity.
 /// All arithmetic operations enforce same-currency constraint.
 /// Uses decimal internally to avoid floating-point rounding issues.
+/// Amount is rounded to 2 decimal places using banker's rounding (MidpointRounding.ToEven).
 /// </remarks>
-public sealed class Money(Decimal amount, string currency) : IEquatable<Money>
+public sealed record Money
 {
-    public Decimal Amount { get; } = Math.Round(amount, 2, MidpointRounding.ToEven);
+    public Decimal Amount { get; }
 
-    public string Currency { get; } = currency ?? throw new ArgumentNullException(nameof(currency));
+    public string Currency { get; }
+
+    public Money(Decimal amount, string currency)
+    {
+        ArgumentNullException.ThrowIfNull(currency, nameof(currency));
+        if (currency.Length == 0)
+            throw new ArgumentException("Currency must not be empty.", nameof(currency));
+
+        Amount = Math.Round(amount, 2, MidpointRounding.ToEven);
+        Currency = currency;
+    }
 
     public static Money Zero(string currency) => new(0m, currency);
 
@@ -55,10 +66,6 @@ public sealed class Money(Decimal amount, string currency) : IEquatable<Money>
 
     #region Comparison
 
-    public static bool operator ==(Money? left, Money? right) => Equals(left, right);
-
-    public static bool operator !=(Money? left, Money? right) => !Equals(left, right);
-
     public static bool operator <(Money left, Money right)
     {
         if (left.Currency != right.Currency)
@@ -92,12 +99,6 @@ public sealed class Money(Decimal amount, string currency) : IEquatable<Money>
     }
 
     #endregion
-
-    public bool Equals(Money? other) => other is not null && this.Amount == other.Amount && this.Currency == other.Currency;
-
-    public override bool Equals(object? obj) => Equals(obj as Money);
-
-    public override int GetHashCode() => HashCode.Combine(Amount, Currency);
 
     public override string ToString() => $"{Amount.ToString("0.00", CultureInfo.InvariantCulture)} {Currency}";
 }

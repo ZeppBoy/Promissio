@@ -25,7 +25,8 @@ public abstract class DayCountConvention : IEquatable<DayCountConvention>
     /// <summary>
     /// Calculates the actual number of calendar days between two dates.
     /// </summary>
-    public virtual int Days(LocalDate startDate, LocalDate endDate) => (endDate.ToDateTimeUnspecified() - startDate.ToDateTimeUnspecified()).Days;
+    public virtual int Days(LocalDate startDate, LocalDate endDate) =>
+        Period.Between(startDate, endDate, PeriodUnits.Days).Days;
 
     public bool Equals(DayCountConvention? other) => other != null && this.Name == other.Name;
 

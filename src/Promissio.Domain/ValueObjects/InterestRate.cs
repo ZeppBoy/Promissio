@@ -7,32 +7,27 @@ namespace Promissio.Domain.ValueObjects;
 /// <summary>
 /// Abstract base for interest rate representations.
 /// </summary>
-public abstract class InterestRate : IEquatable<InterestRate>
+public abstract record InterestRate
 {
     public abstract Percentage Rate { get; }
 
     public abstract Money CalculateInterest(Money principal, LocalDate startDate, LocalDate endDate);
-
-    public bool Equals(InterestRate? other) => Equals((object?) other);
-
-    public static bool operator ==(InterestRate? left, InterestRate? right) => object.Equals(left, right);
-
-    public static bool operator !=(InterestRate? left, InterestRate? right) => !object.Equals(left, right);
-
-    public override bool Equals(object? obj) => ReferenceEquals(this, obj)
-        || obj is InterestRate other && GetType() == other.GetType() && Rate == other.Rate;
-
-    public override int GetHashCode() => HashCode.Combine(GetType(), Rate);
 }
 
 /// <summary>
 /// Fixed interest rate that does not change over the life of the loan.
 /// </summary>
-public sealed class FixedRate(Percentage rate, DayCountConvention dayCountConvention) : InterestRate
+public sealed record FixedRate : InterestRate
 {
-    public override Percentage Rate { get; } = rate;
+    public override Percentage Rate { get; }
 
-    public DayCountConvention DayCountConvention { get; } = dayCountConvention;
+    public DayCountConvention DayCountConvention { get; init; }
+
+    public FixedRate(Percentage rate, DayCountConvention dayCountConvention)
+    {
+        Rate = rate;
+        DayCountConvention = dayCountConvention;
+    }
 
     public override Money CalculateInterest(Money principal, LocalDate startDate, LocalDate endDate)
     {
@@ -40,7 +35,8 @@ public sealed class FixedRate(Percentage rate, DayCountConvention dayCountConven
         return principal * (Rate.Fraction * dayCountFraction);
     }
 
-    public override bool Equals(object? obj) => obj is FixedRate other
+    public bool Equals(FixedRate? other) =>
+        other is not null
         && Rate == other.Rate
         && DayCountConvention.Equals(other.DayCountConvention);
 
@@ -51,17 +47,27 @@ public sealed class FixedRate(Percentage rate, DayCountConvention dayCountConven
 
 /// <summary>
 /// Floating interest rate based on a reference rate plus a fixed margin.
-/// TODO: Phase N — add reset schedule parameter for re-pricing logic (per 00-core.md spec).
 /// </summary>
-public sealed class FloatingRate(Percentage baseRate, Percentage margin, DayCountConvention dayCountConvention) : InterestRate
+/// <remarks>
+/// Re-pricing logic (reset schedule for base rate updates) is planned for a future phase.
+/// See developers_plan.md for the roadmap.
+/// </remarks>
+public sealed record FloatingRate : InterestRate
 {
-    public override Percentage Rate { get; } = baseRate + margin;
+    public Percentage BaseRate { get; init; }
 
-    public Percentage BaseRate { get; } = baseRate;
+    public Percentage Margin { get; init; }
 
-    public Percentage Margin { get; } = margin;
+    public DayCountConvention DayCountConvention { get; init; }
 
-    public DayCountConvention DayCountConvention { get; } = dayCountConvention;
+    public FloatingRate(Percentage baseRate, Percentage margin, DayCountConvention dayCountConvention)
+    {
+        BaseRate = baseRate;
+        Margin = margin;
+        DayCountConvention = dayCountConvention;
+    }
+
+    public override Percentage Rate => BaseRate + Margin;
 
     public override Money CalculateInterest(Money principal, LocalDate startDate, LocalDate endDate)
     {
@@ -69,13 +75,13 @@ public sealed class FloatingRate(Percentage baseRate, Percentage margin, DayCoun
         return principal * (Rate.Fraction * dayCountFraction);
     }
 
-    public override bool Equals(object? obj) => obj is FloatingRate other
-        && Rate == other.Rate
+    public bool Equals(FloatingRate? other) =>
+        other is not null
         && BaseRate == other.BaseRate
         && Margin == other.Margin
         && DayCountConvention.Equals(other.DayCountConvention);
 
-    public override int GetHashCode() => HashCode.Combine(Rate, BaseRate, Margin, DayCountConvention);
+    public override int GetHashCode() => HashCode.Combine(BaseRate, Margin, DayCountConvention);
 
     public override string ToString() => $"FloatingRate(base={BaseRate}, margin={Margin}, total={Rate})";
 }
@@ -83,11 +89,17 @@ public sealed class FloatingRate(Percentage baseRate, Percentage margin, DayCoun
 /// <summary>
 /// Tiered interest rate that applies different rates based on balance bands or time periods.
 /// </summary>
-public sealed class TieredRate(IList<TieredRate.Tier> tiers, DayCountConvention dayCountConvention) : InterestRate
+public sealed record TieredRate : InterestRate
 {
-    public IList<TieredRate.Tier> Tiers { get; } = tiers;
+    public IReadOnlyList<Tier> Tiers { get; }
 
-    public DayCountConvention DayCountConvention { get; } = dayCountConvention;
+    public DayCountConvention DayCountConvention { get; init; }
+
+    public TieredRate(IReadOnlyList<Tier> tiers, DayCountConvention dayCountConvention)
+    {
+        Tiers = tiers ?? throw new ArgumentNullException(nameof(tiers));
+        DayCountConvention = dayCountConvention;
+    }
 
     /// <summary>
     /// Returns the effective rate based on the current balance.
@@ -110,7 +122,8 @@ public sealed class TieredRate(IList<TieredRate.Tier> tiers, DayCountConvention 
         return principal * (effectiveRate.Fraction * dayCountFraction);
     }
 
-    public override bool Equals(object? obj) => obj is TieredRate other
+    public bool Equals(TieredRate? other) =>
+        other is not null
         && DayCountConvention.Equals(other.DayCountConvention)
         && Tiers.SequenceEqual(other.Tiers);
 
@@ -128,18 +141,8 @@ public sealed class TieredRate(IList<TieredRate.Tier> tiers, DayCountConvention 
     /// <summary>
     /// A single tier with an upper balance limit and the rate that applies within that tier.
     /// </summary>
-    public sealed class Tier(Percentage rate, Money upperLimit) : IEquatable<Tier>
+    public sealed record Tier(Percentage Rate, Money UpperLimit)
     {
-        public Percentage Rate { get; } = rate;
-
-        public Money UpperLimit { get; } = upperLimit;
-
-        public bool Equals(Tier? other) => other != null && this.Rate == other.Rate && this.UpperLimit == other.UpperLimit;
-
-        public override bool Equals(object? obj) => Equals(obj as Tier);
-
-        public override int GetHashCode() => HashCode.Combine(Rate, UpperLimit);
-
         public override string ToString() => $"Tier(rate={Rate}, limit={UpperLimit})";
     }
 }
@@ -148,11 +151,17 @@ public sealed class TieredRate(IList<TieredRate.Tier> tiers, DayCountConvention 
 /// Effective interest rate representing the APRC (Annual Percentage Rate of Charge).
 /// Calculated using an iterative solver per EU Consumer Credit Directive.
 /// </summary>
-public sealed class EffectiveRate(Percentage rate, DayCountConvention dayCountConvention) : InterestRate
+public sealed record EffectiveRate : InterestRate
 {
-    public override Percentage Rate { get; } = rate;
+    public override Percentage Rate { get; }
 
-    public DayCountConvention DayCountConvention { get; } = dayCountConvention;
+    public DayCountConvention DayCountConvention { get; init; }
+
+    public EffectiveRate(Percentage rate, DayCountConvention dayCountConvention)
+    {
+        Rate = rate;
+        DayCountConvention = dayCountConvention;
+    }
 
     public override Money CalculateInterest(Money principal, LocalDate startDate, LocalDate endDate)
     {
@@ -160,7 +169,8 @@ public sealed class EffectiveRate(Percentage rate, DayCountConvention dayCountCo
         return principal * (Rate.Fraction * dayCountFraction);
     }
 
-    public override bool Equals(object? obj) => obj is EffectiveRate other
+    public bool Equals(EffectiveRate? other) =>
+        other is not null
         && Rate == other.Rate
         && DayCountConvention.Equals(other.DayCountConvention);
 
