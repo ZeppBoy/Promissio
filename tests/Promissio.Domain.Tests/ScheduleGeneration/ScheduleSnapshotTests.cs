@@ -3,7 +3,7 @@ using FluentAssertions;
 using NodaTime;
 using Promissio.Domain.ValueObjects;
 using Promissio.Domain.ScheduleGeneration;
-using Verify;
+using Verify.Xunit;
 using Xunit;
 
 namespace Promissio.Domain.Tests.ScheduleGeneration;
@@ -24,6 +24,6 @@ public class ScheduleSnapshotTests
         var schedule = generator.Generate(principal, rate, term, _startDate).ToList();
 
         // Act & Assert
-        schedule.Verify();
+        Verify(schedule);
     }
 }
