@@ -3,8 +3,6 @@ using FluentAssertions;
 using NodaTime;
 using Promissio.Domain.ValueObjects;
 using Promissio.Domain.ScheduleGeneration;
-using Verify.Xunit;
-using Xunit;
 
 namespace Promissio.Domain.Tests.ScheduleGeneration;
 
