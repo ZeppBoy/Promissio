@@ -1,6 +1,6 @@
 using System.Collections.Generic;
-using Promissio.Domain.ValueObjects;
 using NodaTime;
+using Promissio.Domain.ValueObjects;
 
 namespace Promissio.Domain.ScheduleGeneration;
 

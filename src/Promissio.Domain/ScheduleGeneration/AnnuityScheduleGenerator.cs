@@ -1,100 +1,150 @@
 using System;
 using System.Collections.Generic;
-using Promissio.Domain.ValueObjects;
 using NodaTime;
+using Promissio.Domain.Calculations;
+using Promissio.Domain.ValueObjects;
 
 namespace Promissio.Domain.ScheduleGeneration;
 
 /// <summary>
-/// Generates an annuity payment schedule where each period's total payment is constant.
+/// Generates annuity payment schedules (equal total payments, varying principal/interest split).
 /// </summary>
 public class AnnuityScheduleGenerator : IScheduleGenerator
 {
+    private readonly IInterestCalculator _interestCalculator;
+
+    public AnnuityScheduleGenerator(IInterestCalculator interestCalculator)
+    {
+        _interestCalculator = interestCalculator;
+    }
+
     public IEnumerable<PaymentScheduleItem> Generate(
         Money principal,
-        Percentage interestRate,
+        InterestRate interestRate,
         int termMonths,
         LocalDate startDate,
         int gracePeriodMonths = 0)
     {
-        if (gracePeriodMonths < 0 || gracePeriodMonths >= termMonths)
-        {
-            throw new ArgumentOutOfRangeException(nameof(gracePeriodMonths), "Grace period must be non-negative and less than the total term.");
-        }
+        if (gracePeriodMonths < 0)
+            throw new ArgumentException("Grace period cannot be negative.", nameof(gracePeriodMonths));
 
-        var schedule = new List<PaymentScheduleItem>();
-        
-        // The annuity formula: P = [r * PV] / [1 - (1 + r)^-n]
-        // where:
-        // P = periodic payment
-        // r = periodic interest rate
-        // PV = present value (principal)
-        // n = total number of periods
-        
-        decimal annualRate = interestRate.Fraction;
-        decimal monthlyRate = annualRate / 12m;
-        
+        if (gracePeriodMonths >= termMonths)
+            throw new ArgumentException("Grace period must be less than total term.", nameof(gracePeriodMonths));
+
+        if (principal.Amount <= 0)
+            throw new ArgumentException("Principal must be positive.", nameof(principal));
+
+        if (interestRate.Rate.Fraction < 0)
+            throw new ArgumentException("Interest rate must be non-negative.", nameof(interestRate));
+
+        if (termMonths <= 0)
+            throw new ArgumentException("Term must be positive.", nameof(termMonths));
+
+        // Calculate monthly rate from annual rate
+        var monthlyRate = interestRate.Rate / 12;
+        var currency = principal.Currency;
+
+        var items = new List<PaymentScheduleItem>();
+        decimal remainingBalance = principal.Amount;
+        LocalDate previousDate = startDate;
+
         int amortizationPeriods = termMonths - gracePeriodMonths;
-        decimal p;
+        decimal totalPayment;
 
-        if (monthlyRate == 0)
+        if (monthlyRate.Fraction == 0)
         {
-            p = principal.Amount / amortizationPeriods;
+            // Zero interest case - simple equal principal payments
+            totalPayment = principal.Amount / amortizationPeriods;
         }
         else
         {
-            p = (monthlyRate * principal.Amount) / (1m - (decimal)Math.Pow((double)(1m + monthlyRate), -amortizationPeriods));
+            // Annuity formula: M = P * r * (1+r)^n / ((1+r)^n - 1)
+            decimal rate = monthlyRate.Fraction;
+            decimal factor = DecimalPower(1m + rate, amortizationPeriods);
+            totalPayment = principal.Amount * rate * factor / (factor - 1m);
         }
-        
-        decimal remainingPrincipal = principal.Amount;
+
+        // Count amortization periods to track which is the last one
+        int amortizationCount = 0;
+
         for (int i = 1; i <= termMonths; i++)
         {
-            // Handle grace period: only interest is paid (or nothing, depending on business rules)
-            // For this implementation, we assume interest-only during grace period.
-            
-            decimal interestPortion = remainingPrincipal * monthlyRate;
-            decimal principalPortion;
-            decimal totalPayment;
+            var paymentDate = startDate.PlusMonths(i);
 
             if (i <= gracePeriodMonths)
             {
-                principalPortion = 0;
-                totalPayment = interestPortion;
+                // Grace period: interest only
+                Money graceInterestPortion = _interestCalculator.Calculate(
+                    new Money(remainingBalance, currency), interestRate, previousDate, paymentDate);
+
+                items.Add(new PaymentScheduleItem(
+                    i, paymentDate, Money.Zero(currency), graceInterestPortion, graceInterestPortion));
+
+                previousDate = paymentDate;
+                continue;
             }
-            else
+
+            // Track amortization period number
+            amortizationCount++;
+            bool isLastAmortization = amortizationCount == amortizationPeriods;
+
+            // Interest on current balance
+            Money interestPortion = _interestCalculator.Calculate(
+                new Money(remainingBalance, currency), interestRate, previousDate, paymentDate);
+
+            // Calculate principal portion
+            decimal principalPortion = totalPayment - interestPortion.Amount;
+
+            // Last amortization period: pay remaining balance (absorbs all rounding)
+            if (isLastAmortization)
             {
-                principalPortion = p - interestPortion;
-                
-                // Ensure the last payment clears the remaining principal exactly
-                if (i == termMonths)
-                {
-                    principalPortion = remainingPrincipal;
-                    totalPayment = principalPortion + interestPortion;
-                }
-                else
-                {
-                    totalPayment = p;
-                }
+                principalPortion = remainingBalance;
             }
 
-            // Clamp principal portion to remaining principal to avoid overpayment
-            if (principalPortion > remainingPrincipal)
+            // Ensure principal portion is non-negative and doesn't exceed remaining balance
+            if (principalPortion < 0)
             {
-                principalPortion = remainingPrincipal;
-                totalPayment = principalPortion + interestPortion;
+                principalPortion = 0m;
+            }
+            else if (principalPortion > remainingBalance)
+            {
+                principalPortion = remainingBalance;
             }
 
-            remainingPrincipal -= principalPortion;
+            // Round principal portion to 2 decimal places
+            var roundedPrincipalPortion = Math.Round(principalPortion, 2, MidpointRounding.ToEven);
 
-            schedule.Add(new PaymentScheduleItem(
-                i,
-                startDate.PlusMonths(i),
-                new Money(Math.Round(principalPortion, 2), principal.Currency),
-                new Money(Math.Round(interestPortion, 2), principal.Currency),
-                new Money(Math.Round(totalPayment, 2), principal.Currency)
-            ));
+            Money principalMoney = new Money(roundedPrincipalPortion, currency);
+            Money totalMoney = principalMoney + interestPortion;
+
+            // Update balance with rounded value
+            remainingBalance -= roundedPrincipalPortion;
+
+            // Safety check: ensure balance doesn't go negative from rounding
+            if (remainingBalance < 0)
+            {
+                remainingBalance = 0;
+            }
+
+            items.Add(new PaymentScheduleItem(
+                i, paymentDate, principalMoney, interestPortion, totalMoney));
+
+            previousDate = paymentDate;
         }
 
-        return schedule;
+        return items;
+    }
+
+    /// <summary>
+    /// Computes base^exponent using pure decimal arithmetic.
+    /// </summary>
+    private static decimal DecimalPower(decimal baseValue, int exponent)
+    {
+        decimal result = 1m;
+        for (int i = 0; i < exponent; i++)
+        {
+            result *= baseValue;
+        }
+        return result;
     }
 }

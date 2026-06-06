@@ -288,7 +288,7 @@ public class MoneyTests
         str.Should().Be("1234.56 USD");
     }
 
-     [Fact]
+    [Fact]
     public void ToString_NegativeAmount_IncludesMinusSign()
     {
         var money = new Money(-100m, "EUR");

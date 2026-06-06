@@ -133,7 +133,7 @@ public class PercentageTests
         percentage.AsBasisPoints.Should().Be(0L);
     }
 
-   [Fact]
+    [Fact]
     public void Percentage_Equality_SameFraction_True()
     {
         var a = Percentage.FromPercent(5m);

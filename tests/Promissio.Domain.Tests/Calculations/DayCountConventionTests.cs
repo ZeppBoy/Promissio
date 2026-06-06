@@ -150,7 +150,7 @@ public class ActualActualTests
         fraction.Should().Be(expected);
     }
 
-   [Theory]
+    [Theory]
     [InlineData(2023, 1, 1, 2023, 1, 31, 30)]
     [InlineData(2023, 1, 1, 2023, 2, 1, 31)]
     [InlineData(2023, 6, 1, 2023, 6, 30, 29)]
@@ -169,7 +169,7 @@ public class ActualActualTests
     [InlineData(2024, 2, 29, 2024, 3, 1, 1)]
     [InlineData(2023, 1, 1, 2023, 1, 2, 1)]
     public void Fraction_WithinSameYear_ReturnsCorrectValue(int startYear, int startMonth, int startDay,
-        int endYear, int endMonth, int endDay, int expectedDays)
+         int endYear, int endMonth, int endDay, int expectedDays)
     {
         var convention = new ActualActual();
         var startDate = new LocalDate(startYear, startMonth, startDay);
@@ -243,7 +243,7 @@ public class ActualActualTests
         fraction.Should().Be(366m / 365m);
     }
 
-   [Fact]
+    [Fact]
     public void Fraction_CenturyYears_2100_NotLeap()
     {
         var convention = new ActualActual();
@@ -269,7 +269,7 @@ public class ActualActualTests
         fraction.Should().Be(expected);
     }
 
-   [Fact]
+    [Fact]
     public void Fraction_CenturyYears_2100_NotLeap_CrossesCentury()
     {
         var convention = new ActualActual();
@@ -284,7 +284,7 @@ public class ActualActualTests
         fraction.Should().Be(expected);
     }
 
-   [Fact]
+    [Fact]
     public void Fraction_ExactlyOneYearBoundary_AnniversaryEqualsEndDate()
     {
         var convention = new ActualActual();
@@ -376,7 +376,7 @@ public class Thirty360Tests
         convention.Name.Should().Be("30/360");
     }
 
-[Fact]
+    [Fact]
     public void Fraction_SameDate_ReturnsZero()
     {
         var convention = new Thirty360();

@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
-using Promissio.Domain.ValueObjects;
 using NodaTime;
+using Promissio.Domain.Calculations;
+using Promissio.Domain.ValueObjects;
 
 namespace Promissio.Domain.ScheduleGeneration;
 
 /// <summary>
-/// Generates a custom payment schedule based on a predefined list of cash flows.
+/// Generates payment schedules from predefined cash flows.
+/// Useful for loans with irregular payment patterns.
 /// </summary>
 public class CustomScheduleGenerator : IScheduleGenerator
 {
@@ -19,39 +21,51 @@ public class CustomScheduleGenerator : IScheduleGenerator
 
     public IEnumerable<PaymentScheduleItem> Generate(
         Money principal,
-        Percentage interestRate,
+        InterestRate interestRate,
         int termMonths,
         LocalDate startDate,
         int gracePeriodMonths = 0)
     {
-        // For a custom schedule, the provided cash flows override the standard logic.
-        // However, we still need to ensure the schedule matches the requested term.
-        
-        var schedule = new List<PaymentScheduleItem>();
-        
-        for (int i = 0; i < _customFlows.Count; i++)
-        {
-            var flow = _customFlows[i];
-            
-            // Adjust period to be 1-based
-            int period = i + 1;
-            
-            // Ensure we don't exceed the requested term
-            if (period > termMonths) break;
+        if (gracePeriodMonths < 0)
+            throw new ArgumentException("Grace period cannot be negative.", nameof(gracePeriodMonths));
 
-            schedule.Add(new PaymentScheduleItem(
-                period,
-                startDate.PlusMonths(period),
-                flow.PrincipalPortion,
-                flow.InterestPortion,
-                new Money(
-                    flow.PrincipalPortion.Amount + flow.InterestPortion.Amount, 
-                    principal.Currency
-                )
-            ));
+        if (gracePeriodMonths >= termMonths)
+            throw new ArgumentException("Grace period must be less than total term.", nameof(gracePeriodMonths));
+
+        if (principal.Amount <= 0)
+            throw new ArgumentException("Principal must be positive.", nameof(principal));
+
+        if (interestRate.Rate.Fraction < 0)
+            throw new ArgumentException("Interest rate must be non-negative.", nameof(interestRate));
+
+        if (termMonths <= 0)
+            throw new ArgumentException("Term must be positive.", nameof(termMonths));
+
+        // Custom schedules are defined by the caller; gracePeriodMonths is validated but not enforced
+        // since the caller provides the exact cash flows.
+
+        var currency = principal.Currency;
+        var items = new List<PaymentScheduleItem>();
+
+        for (int i = 1; i <= termMonths; i++)
+        {
+            var paymentDate = startDate.PlusMonths(i);
+
+            if (i <= _customFlows.Count)
+            {
+                var flow = _customFlows[i - 1];
+                items.Add(new PaymentScheduleItem(
+                    i, paymentDate, flow.PrincipalPortion, flow.InterestPortion,
+                    flow.PrincipalPortion + flow.InterestPortion));
+            }
+            else
+            {
+                items.Add(new PaymentScheduleItem(
+                    i, paymentDate, Money.Zero(currency), Money.Zero(currency), Money.Zero(currency)));
+            }
         }
 
-        return schedule;
+        return items;
     }
 
     public record CustomCashFlow(
