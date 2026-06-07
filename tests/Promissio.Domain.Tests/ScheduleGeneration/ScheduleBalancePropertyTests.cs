@@ -138,7 +138,7 @@ public class ScheduleBalancePropertyTests
                     new Money(0m, "USD")));
             }
 
-            var generator = new CustomScheduleGenerator(flows);
+            var generator = new CustomScheduleGenerator(flows, _interestCalculator);
             var schedule = generator.Generate(principal, rate, termMonths, startDate);
 
             var totalPrincipal = schedule.Sum(s => s.PrincipalPortion.Amount);

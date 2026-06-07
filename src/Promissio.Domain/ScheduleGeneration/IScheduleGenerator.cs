@@ -17,13 +17,15 @@ public interface IScheduleGenerator
     /// <param name="termMonths">The total term of the loan in months.</param>
     /// <param name="startDate">The date from which the first payment period begins.</param>
     /// <param name="gracePeriodMonths">The number of months of grace period at the start of the loan.</param>
+    /// <param name="holidayCalendar">Optional calendar for business day adjustments.</param>
     /// <returns>A collection of payment schedule items.</returns>
     IEnumerable<PaymentScheduleItem> Generate(
         Money principal,
         InterestRate interestRate,
         int termMonths,
         LocalDate startDate,
-        int gracePeriodMonths = 0);
+        int gracePeriodMonths = 0,
+        HolidayCalendar? holidayCalendar = null);
 }
 
 /// <summary>

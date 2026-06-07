@@ -75,7 +75,7 @@ public class ScheduleSnapshotTests
             new(new Money(1000, "USD"), new Money(500, "USD"))
         };
 
-        var generator = new CustomScheduleGenerator(customFlows);
+        var generator = new CustomScheduleGenerator(customFlows, _interestCalculator);
         var schedule = generator.Generate(principal, rate, term, _startDate).ToList();
 
         // Act & Assert

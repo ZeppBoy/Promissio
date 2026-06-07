@@ -23,7 +23,8 @@ public class DifferentiatedScheduleGenerator : IScheduleGenerator
         InterestRate interestRate,
         int termMonths,
         LocalDate startDate,
-        int gracePeriodMonths = 0)
+        int gracePeriodMonths = 0,
+        HolidayCalendar? holidayCalendar = null)
     {
         if (gracePeriodMonths < 0)
             throw new ArgumentException("Grace period cannot be negative.", nameof(gracePeriodMonths));
@@ -47,9 +48,22 @@ public class DifferentiatedScheduleGenerator : IScheduleGenerator
         LocalDate previousDate = startDate;
 
         int amortizationPeriods = termMonths - gracePeriodMonths;
-        decimal principalPortion = principal.Amount / amortizationPeriods;
+        decimal totalPayment;
 
-        // Track amortization periods
+        if (interestRate.Rate.Fraction == 0)
+        {
+            // Zero interest case - simple equal principal payments
+            totalPayment = principal.Amount / amortizationPeriods;
+        }
+        else
+        {
+            // Differentiated formula: M = P * r * (1+r)^n / ((1+r)^n - 1)
+            decimal rate = interestRate.Rate.Fraction / 12;
+            decimal factor = DecimalPower(1m + rate, amortizationPeriods);
+            totalPayment = principal.Amount * rate * factor / (factor - 1m);
+        }
+
+        // Count amortization periods to track which is the last one
         int amortizationCount = 0;
 
         for (int i = 1; i <= termMonths; i++)
@@ -77,28 +91,35 @@ public class DifferentiatedScheduleGenerator : IScheduleGenerator
             Money interestPortion = _interestCalculator.Calculate(
                 new Money(remainingBalance, currency), interestRate, previousDate, paymentDate);
 
-            decimal principalPortionForPeriod = principalPortion;
+            // Calculate principal portion
+            decimal principalPortion = totalPayment - interestPortion.Amount;
 
-            // Last period: absorb rounding error - pay remaining balance
+            // Last amortization period: pay remaining balance (absorbs all rounding)
             if (isLastAmortization)
             {
-                principalPortionForPeriod = remainingBalance;
+                principalPortion = remainingBalance;
             }
-
-            // Ensure principal doesn't exceed remaining balance
-            if (principalPortionForPeriod > remainingBalance)
+            else
             {
-                principalPortionForPeriod = remainingBalance;
+                // Ensure principal portion is non-negative and doesn't exceed remaining balance
+                if (principalPortion < 0)
+                {
+                    principalPortion = 0m;
+                }
+                else if (principalPortion > remainingBalance)
+                {
+                    principalPortion = remainingBalance;
+                }
+
+                // Round principal portion to 2 decimal places
+                principalPortion = Math.Round(principalPortion, 2, MidpointRounding.ToEven);
             }
 
-            // Round principal portion to 2 decimal places
-            var roundedPrincipalPortion = Math.Round(principalPortionForPeriod, 2, MidpointRounding.ToEven);
-
-            Money principalMoney = new Money(roundedPrincipalPortion, currency);
+            Money principalMoney = new Money(principalPortion, currency);
             Money totalMoney = principalMoney + interestPortion;
 
             // Update balance with rounded value
-            remainingBalance -= roundedPrincipalPortion;
+            remainingBalance -= principalPortion;
 
             // Safety check: ensure balance doesn't go negative from rounding
             if (remainingBalance < 0)
@@ -113,5 +134,15 @@ public class DifferentiatedScheduleGenerator : IScheduleGenerator
         }
 
         return items;
+    }
+
+    private static decimal DecimalPower(decimal baseValue, int exponent)
+    {
+        decimal result = 1m;
+        for (int i = 0; i < exponent; i++)
+        {
+            result *= baseValue;
+        }
+        return result;
     }
 }

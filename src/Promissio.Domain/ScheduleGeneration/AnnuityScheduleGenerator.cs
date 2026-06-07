@@ -23,7 +23,8 @@ public class AnnuityScheduleGenerator : IScheduleGenerator
         InterestRate interestRate,
         int termMonths,
         LocalDate startDate,
-        int gracePeriodMonths = 0)
+        int gracePeriodMonths = 0,
+        HolidayCalendar? holidayCalendar = null)
     {
         if (gracePeriodMonths < 0)
             throw new ArgumentException("Grace period cannot be negative.", nameof(gracePeriodMonths));
@@ -100,25 +101,27 @@ public class AnnuityScheduleGenerator : IScheduleGenerator
             {
                 principalPortion = remainingBalance;
             }
-
-            // Ensure principal portion is non-negative and doesn't exceed remaining balance
-            if (principalPortion < 0)
+            else
             {
-                principalPortion = 0m;
-            }
-            else if (principalPortion > remainingBalance)
-            {
-                principalPortion = remainingBalance;
+                // Ensure principal portion is non-negative and doesn't exceed remaining balance
+                if (principalPortion < 0)
+                {
+                    principalPortion = 0m;
+                }
+                else if (principalPortion > remainingBalance)
+                {
+                    principalPortion = remainingBalance;
+                }
+
+                // Round principal portion to 2 decimal places
+                principalPortion = Math.Round(principalPortion, 2, MidpointRounding.ToEven);
             }
 
-            // Round principal portion to 2 decimal places
-            var roundedPrincipalPortion = Math.Round(principalPortion, 2, MidpointRounding.ToEven);
-
-            Money principalMoney = new Money(roundedPrincipalPortion, currency);
+            Money principalMoney = new Money(principalPortion, currency);
             Money totalMoney = principalMoney + interestPortion;
 
             // Update balance with rounded value
-            remainingBalance -= roundedPrincipalPortion;
+            remainingBalance -= principalPortion;
 
             // Safety check: ensure balance doesn't go negative from rounding
             if (remainingBalance < 0)
@@ -135,9 +138,6 @@ public class AnnuityScheduleGenerator : IScheduleGenerator
         return items;
     }
 
-    /// <summary>
-    /// Computes base^exponent using pure decimal arithmetic.
-    /// </summary>
     private static decimal DecimalPower(decimal baseValue, int exponent)
     {
         decimal result = 1m;

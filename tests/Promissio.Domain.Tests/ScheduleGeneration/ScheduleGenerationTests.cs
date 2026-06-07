@@ -139,7 +139,7 @@ public class ScheduleGenerationTests
         };
 
         // Act
-        var generator = new CustomScheduleGenerator(customFlows);
+        var generator = new CustomScheduleGenerator(customFlows, _interestCalculator);
         var schedule = generator.Generate(principal, rate, term, _startDate);
 
         // Assert

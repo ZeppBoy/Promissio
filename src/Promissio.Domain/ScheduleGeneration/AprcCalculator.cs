@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using NodaTime;
+using Promissio.Domain.Calculations;
 using Promissio.Domain.Calculations.DayCounts;
 using Promissio.Domain.ValueObjects;
 
@@ -43,37 +44,33 @@ public class AprcCalculator : IAprcCalculator
         // We use the Bisection Method to find the monthly rate 'm'
         // such that Sum_{i=1}^{n} [ Payment_i / (1 + m)^{t_i} ] = Principal
 
-        double low = -0.99; // Monthly rate can't be less than -100%
-        double high = 5.0;  // 500% annual rate is a safe upper bound for consumer credit
-        double mid = 0;
+        decimal low = -0.99m; // Monthly rate can't be less than -100%
+        decimal high = 5.0m;  // 500% annual rate is a safe upper bound for consumer credit
+        decimal mid = 0m;
 
         for (int i = 0; i < maxIterations; i++)
         {
-            mid = (low + high) / 2.0;
-            double pv = 0;
+            mid = (low + high) / 2.0m;
+            decimal pv = 0m;
 
-            if (Math.Abs(mid) < 1e-9)
+            if (Math.Abs(mid) < 1e-9m)
             {
                 foreach (var item in materializedSchedule)
                 {
-                    pv += (double)item.TotalPayment.Amount;
+                    pv += item.TotalPayment.Amount;
                 }
             }
             else
             {
                 foreach (var item in materializedSchedule)
                 {
-                    // Calculate the exact year fraction using the day-count convention
-                    double timeInYears = (double)_dayCountConvention.Fraction(disbursementDate, item.PaymentDate);
-
-                    // Convert years to periods (since we're solving for monthly rate)
-                    double periods = timeInYears * 12;
-
-                    pv += (double)item.TotalPayment.Amount / Math.Pow(1 + mid, periods);
+                    // Use the period number as the exponent to remain consistent with schedule generation logic.
+                    // This ensures that for standard annuities, the solver finds the exact nominal rate.
+                    pv += item.TotalPayment.Amount / DecimalPower(1m + mid, item.Period);
                 }
             }
 
-            if (pv > (double)principal.Amount)
+            if (pv > principal.Amount)
             {
                 low = mid;
             }
@@ -84,7 +81,17 @@ public class AprcCalculator : IAprcCalculator
         }
 
         // Convert monthly rate to annual rate using effective annual rate formula
-        decimal annualRate = (decimal)(Math.Pow(1.0 + mid, 12.0) - 1.0);
+        decimal annualRate = DecimalPower(1m + mid, 12) - 1m;
         return new Percentage(annualRate);
+    }
+
+    private static decimal DecimalPower(decimal baseValue, int exponent)
+    {
+        decimal result = 1m;
+        for (int i = 0; i < exponent; i++)
+        {
+            result *= baseValue;
+        }
+        return result;
     }
 }
