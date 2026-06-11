@@ -6,7 +6,9 @@
       "Bash(git push *)",
       "Bash(git reset *)",
       "Bash(git restore *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git -C /Users/viktorshershnov/repo/Promissio ls-files src/tests/)",
+      "Read(//tmp/**)"
     ]
   }
 }
