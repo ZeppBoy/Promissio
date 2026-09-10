@@ -4,7 +4,7 @@ An open-source loan servicing platform for .NET, with planned AI support for cre
 
 ## Current status
 
-The domain library implements interest calculations, day-count conventions, payment schedules and dated APRC. Phase 2 stabilization is implemented; financial review, coverage and mutation targets remain pending. Application workflows, persistence, HTTP operations, daily batch jobs, MCP tools and AI agents remain scaffolding or planned work.
+The domain library implements interest calculations, day-count conventions, payment schedules and dated APRC. Phase 2 is partially implemented; remaining financial review, coverage and mutation assurance work is deferred while Phase 3 contract preparation proceeds. Application workflows, persistence, HTTP operations, daily batch jobs, MCP tools and AI agents remain scaffolding or planned work.
 
 See [delivery status](docs/status.md), [current architecture](docs/architecture/current-state.md) and the [development roadmap](docs/plan/README.md). Implemented scope and future scope are recorded separately.
 

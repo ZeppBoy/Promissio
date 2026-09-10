@@ -4,6 +4,8 @@
 
 **Goal:** Model the loan lifecycle with rigorous state transitions and event sourcing.
 
+**Next active task:** use the [Qwen contract-preparation prompt](../../Prompts/qwen-phase-3-contracts.md). The owner has deferred unfinished Phase 2 assurance work. This permits progression to Phase 3 preparation, but does not accept ADRs 0006/0007 or authorize invented financial contracts.
+
 ## Week 7 — Loan Aggregate
 
 **Tasks:**
