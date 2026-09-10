@@ -22,4 +22,6 @@ Read [product context](00-core.md) for goals and the target design. Check [curre
 
 ## Next decisions
 
+For implementation with the local Qwen model, use the [Qwen3.8-27B-IQ3_M developer handoff](qwen-local/README.md). It contains llama.cpp qualification, bounded task packets and review gates; it does not change the application AI provider decisions.
+
 Before Phase 3 implementation, review the proposed [application-to-loan handoff](../adr/0006-origination-servicing-handoff.md) and [persistence ownership](../adr/0007-persistence-and-concurrency.md). Before exposing operations, review [single-tenant authorization](../adr/0008-single-tenant-authorization.md). No loan state transitions or access policies are implemented by these proposals.
