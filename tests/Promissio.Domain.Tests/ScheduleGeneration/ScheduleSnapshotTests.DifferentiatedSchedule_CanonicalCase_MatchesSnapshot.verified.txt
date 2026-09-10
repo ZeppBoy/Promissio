@@ -1,0 +1,206 @@
+﻿[
+  {
+    Period: 1,
+    PaymentDate: 2024-02-01,
+    ContractualDate: 2024-02-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 84.70,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 918.03,
+      Currency: USD
+    }
+  },
+  {
+    Period: 2,
+    PaymentDate: 2024-03-01,
+    ContractualDate: 2024-03-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 72.63,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 905.96,
+      Currency: USD
+    }
+  },
+  {
+    Period: 3,
+    PaymentDate: 2024-04-01,
+    ContractualDate: 2024-04-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 70.58,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 903.91,
+      Currency: USD
+    }
+  },
+  {
+    Period: 4,
+    PaymentDate: 2024-05-01,
+    ContractualDate: 2024-05-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 61.48,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 894.81,
+      Currency: USD
+    }
+  },
+  {
+    Period: 5,
+    PaymentDate: 2024-06-01,
+    ContractualDate: 2024-06-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 56.47,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 889.80,
+      Currency: USD
+    }
+  },
+  {
+    Period: 6,
+    PaymentDate: 2024-07-01,
+    ContractualDate: 2024-07-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 47.81,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 881.14,
+      Currency: USD
+    }
+  },
+  {
+    Period: 7,
+    PaymentDate: 2024-08-01,
+    ContractualDate: 2024-08-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 42.35,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 875.68,
+      Currency: USD
+    }
+  },
+  {
+    Period: 8,
+    PaymentDate: 2024-09-01,
+    ContractualDate: 2024-09-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 35.29,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 868.62,
+      Currency: USD
+    }
+  },
+  {
+    Period: 9,
+    PaymentDate: 2024-10-01,
+    ContractualDate: 2024-10-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 27.32,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 860.65,
+      Currency: USD
+    }
+  },
+  {
+    Period: 10,
+    PaymentDate: 2024-11-01,
+    ContractualDate: 2024-11-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 21.18,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 854.51,
+      Currency: USD
+    }
+  },
+  {
+    Period: 11,
+    PaymentDate: 2024-12-01,
+    ContractualDate: 2024-12-01,
+    PrincipalPortion: {
+      Amount: 833.33,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 13.66,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 846.99,
+      Currency: USD
+    }
+  },
+  {
+    Period: 12,
+    PaymentDate: 2025-01-01,
+    ContractualDate: 2025-01-01,
+    PrincipalPortion: {
+      Amount: 833.37,
+      Currency: USD
+    },
+    InterestPortion: {
+      Amount: 7.06,
+      Currency: USD
+    },
+    TotalPayment: {
+      Amount: 840.43,
+      Currency: USD
+    }
+  }
+]

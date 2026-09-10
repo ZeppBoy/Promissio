@@ -14,10 +14,11 @@ public interface IScheduleGenerator
     /// </summary>
     /// <param name="principal">The initial principal amount of the loan.</param>
     /// <param name="interestRate">The interest rate (encapsulates rate and day-count convention).</param>
-    /// <param name="termMonths">The total term of the loan in months.</param>
+    /// <param name="termMonths">The number of monthly payments, including grace instalments.</param>
     /// <param name="startDate">The date from which the first payment period begins.</param>
     /// <param name="gracePeriodMonths">The number of months of grace period at the start of the loan.</param>
     /// <param name="holidayCalendar">Optional calendar for business day adjustments.</param>
+    /// <param name="firstPaymentDate">Optional first contractual due date for a short or long first period.</param>
     /// <returns>A collection of payment schedule items.</returns>
     IEnumerable<PaymentScheduleItem> Generate(
         Money principal,
@@ -25,7 +26,8 @@ public interface IScheduleGenerator
         int termMonths,
         LocalDate startDate,
         int gracePeriodMonths = 0,
-        HolidayCalendar? holidayCalendar = null);
+        HolidayCalendar? holidayCalendar = null,
+        LocalDate? firstPaymentDate = null);
 }
 
 /// <summary>
@@ -38,22 +40,36 @@ public interface IScheduleGenerator
 /// </remarks>
 public sealed record PaymentScheduleItem
 {
+    /// <summary>The one-based instalment number.</summary>
     public int Period { get; }
+    /// <summary>The actual payable date, including any business-day adjustment.</summary>
     public LocalDate PaymentDate { get; }
+    /// <summary>The unadjusted due date used to end the interest accrual period.</summary>
+    public LocalDate ContractualDate { get; }
+    /// <summary>The principal repaid by this instalment.</summary>
     public Money PrincipalPortion { get; }
+    /// <summary>The interest due in this instalment.</summary>
     public Money InterestPortion { get; }
+    /// <summary>The total due in the same currency as its components.</summary>
     public Money TotalPayment { get; }
 
     /// <summary>
     /// Creates a new PaymentScheduleItem with validation.
     /// </summary>
-    public PaymentScheduleItem(int period, LocalDate paymentDate, Money principalPortion, Money interestPortion, Money totalPayment)
+    public PaymentScheduleItem(int period, LocalDate paymentDate, Money principalPortion, Money interestPortion,
+        Money totalPayment, LocalDate? contractualDate = null)
     {
+        ArgumentNullException.ThrowIfNull(principalPortion);
+        ArgumentNullException.ThrowIfNull(interestPortion);
+        ArgumentNullException.ThrowIfNull(totalPayment);
+        if (principalPortion.Currency != interestPortion.Currency || principalPortion.Currency != totalPayment.Currency)
+            throw new ArgumentException("All payment components must use the same currency.");
         if (period <= 0)
             throw new ArgumentException("Period must be positive.", nameof(period));
 
         Period = period;
         PaymentDate = paymentDate;
+        ContractualDate = contractualDate ?? paymentDate;
         PrincipalPortion = principalPortion;
         InterestPortion = interestPortion;
         TotalPayment = totalPayment;
@@ -65,8 +81,11 @@ public sealed record PaymentScheduleItem
         if (InterestPortion.Amount < 0)
             throw new ArgumentException("Interest portion must be non-negative.", nameof(interestPortion));
 
+        if (TotalPayment.Amount < 0)
+            throw new ArgumentException("Total payment must be non-negative.", nameof(totalPayment));
+
         // TotalPayment should equal PrincipalPortion + InterestPortion (within rounding tolerance)
-        var expectedTotal = PrincipalPortion.Amount + InterestPortion.Amount;
+        var expectedTotal = (PrincipalPortion + InterestPortion).Amount;
         var actualTotal = TotalPayment.Amount;
         if (Math.Abs(expectedTotal - actualTotal) > 0.01m)
         {

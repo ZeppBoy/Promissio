@@ -1,97 +1,95 @@
-using System;
-using System.Collections.Generic;
 using NodaTime;
-using Promissio.Domain.Calculations;
-using Promissio.Domain.Calculations.DayCounts;
 using Promissio.Domain.ValueObjects;
 
 namespace Promissio.Domain.ScheduleGeneration;
 
-/// <summary>
-/// Calculates the Annual Percentage Rate of Charge (APRC) using an iterative solver.
-/// This implementation follows the EU Consumer Credit Directive 2008/48/EC.
-/// </summary>
-public class AprcCalculator : IAprcCalculator
+/// <summary>Solves the dated present-value equation for a single drawdown and known non-negative repayments.</summary>
+/// <remarks>
+/// Uses the monthly, annual or weekly interval rules in SWD(2012)128, section 4.1.1.
+/// Source: https://www.mfcr.cz/assets/attachments/EU-MFCR_Metodika_2012_128-Guidelines-consumer-credit-directive-swd-en.pdf
+/// This is a known-cash-flow calculator, not an implementation of every regulatory product assumption.
+/// </remarks>
+public sealed class AprcCalculator : IAprcCalculator
 {
-    private readonly DayCountConvention _dayCountConvention;
+    private readonly AprcPeriodUnit _periodUnit;
 
-    public AprcCalculator(DayCountConvention? dayCountConvention = null)
+    /// <summary>Creates a calculator with an explicit repayment frequency, defaulting to monthly schedules.</summary>
+    public AprcCalculator(AprcPeriodUnit periodUnit = AprcPeriodUnit.Months)
     {
-        _dayCountConvention = dayCountConvention ?? DayCountConventions.ActualActual;
+        if (!Enum.IsDefined(periodUnit))
+            throw new ArgumentOutOfRangeException(nameof(periodUnit));
+        _periodUnit = periodUnit;
     }
 
-    /// <summary>
-    /// Calculates the APRC for a loan based on its payment schedule.
-    /// </summary>
-    /// <param name="principal">The initial principal amount.</param>
-    /// <param name="schedule">The actual payment schedule.</param>
-    /// <param name="disbursementDate">The date the loan was disbursed.</param>
-    /// <param name="maxIterations">Maximum number of iterations for the solver.</param>
-    /// <returns>The APRC as a percentage.</returns>
-    public Percentage Calculate(
-        Money principal,
-        IEnumerable<PaymentScheduleItem> schedule,
-        LocalDate disbursementDate,
-        int maxIterations = 100)
+    /// <inheritdoc />
+    /// <remarks>Compatibility wrapper for trusted inputs; use TryCalculate for expected input or convergence failures.</remarks>
+    public Percentage Calculate(Money principal, IEnumerable<PaymentScheduleItem> schedule,
+        LocalDate disbursementDate, int maxIterations = 100)
     {
-        var materializedSchedule = schedule.ToList();
+        AprcCalculationResult result = TryCalculate(principal, schedule, disbursementDate, maxIterations);
+        return result.Value ?? throw new ArgumentException(result.Error, nameof(schedule));
+    }
 
-        // The APRC is the annual rate such that the present value of all payments 
-        // equals the principal amount.
-        // PV = Sum [ Payment_i / (1 + r)^{t_i} ]
-        // where t_i is the time in years from the disbursement date, calculated using the day-count convention.
+    /// <inheritdoc />
+    public AprcCalculationResult TryCalculate(Money principal, IEnumerable<PaymentScheduleItem> schedule,
+        LocalDate disbursementDate, int maxIterations = 100)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        ArgumentNullException.ThrowIfNull(schedule);
+        if (principal.Amount <= 0 || maxIterations <= 0)
+            return AprcCalculationResult.Failure("Principal and iteration limit must be positive.");
+        if (disbursementDate.Calendar != CalendarSystem.Iso || disbursementDate.Year <= -9998)
+            return AprcCalculationResult.Failure("An ISO date with a representable preceding year is required.");
+        PaymentScheduleItem[] payments = schedule.ToArray();
+        if (payments.Length == 0)
+            return AprcCalculationResult.Failure("At least one repayment is required.");
+        if (payments.Any(p => p is null || p.TotalPayment.Currency != principal.Currency
+            || p.PaymentDate.Calendar != CalendarSystem.Iso || p.PaymentDate < disbursementDate
+            || p.TotalPayment.Amount < 0))
+            return AprcCalculationResult.Failure("Repayments must be non-negative, in the principal currency and on or after disbursement.");
+        if (!payments.Any(p => p.PaymentDate > disbursementDate && p.TotalPayment.Amount > 0))
+            return AprcCalculationResult.Failure("A positive repayment after disbursement is required.");
 
-        // We use the Bisection Method to find the monthly rate 'm'
-        // such that Sum_{i=1}^{n} [ Payment_i / (1 + m)^{t_i} ] = Principal
+        // Normalize before summation; double is used only for fractional powers and root search,
+        // never for posting money. This avoids decimal power overflow on long schedules.
+        (double Amount, double Years)[] flows = payments.Select(p =>
+            ((double)p.TotalPayment.Amount / (double)principal.Amount,
+                AprcTime.Years(disbursementDate, p.PaymentDate, _periodUnit))).ToArray();
+        double zeroValue = PresentValue(flows, 0);
+        if (zeroValue < 1d - 1e-14)
+            return AprcCalculationResult.Failure("A negative APRC is outside the non-negative Percentage contract.");
+        if (Math.Abs(zeroValue - 1d) <= 1e-14)
+            return AprcCalculationResult.Success(Percentage.FromFraction(0));
+        if (flows.Where(f => f.Years == 0).Sum(f => f.Amount) >= 1d)
+            return AprcCalculationResult.Failure("No finite non-negative rate balances these immediate charges.");
 
-        decimal low = -0.99m; // Monthly rate can't be less than -100%
-        decimal high = 5.0m;  // 500% annual rate is a safe upper bound for consumer credit
-        decimal mid = 0m;
-
+        double low = 0;
+        double high = 1;
+        while (PresentValue(flows, high) > 1d)
+        {
+            high *= 2;
+            if (high >= (double)decimal.MaxValue)
+                return AprcCalculationResult.Failure("The rate cannot be represented by Percentage.");
+        }
         for (int i = 0; i < maxIterations; i++)
         {
-            mid = (low + high) / 2.0m;
-            decimal pv = 0m;
-
-            if (Math.Abs(mid) < 1e-9m)
-            {
-                foreach (var item in materializedSchedule)
-                {
-                    pv += item.TotalPayment.Amount;
-                }
-            }
-            else
-            {
-                foreach (var item in materializedSchedule)
-                {
-                    // Use the period number as the exponent to remain consistent with schedule generation logic.
-                    // This ensures that for standard annuities, the solver finds the exact nominal rate.
-                    pv += item.TotalPayment.Amount / DecimalPower(1m + mid, item.Period);
-                }
-            }
-
-            if (pv > principal.Amount)
-            {
+            double mid = low + (high - low) / 2;
+            double value = PresentValue(flows, mid);
+            if (Math.Abs(value - 1d) <= 1e-12 && high - low <= 1e-10 * Math.Max(1d, mid))
+                return AprcCalculationResult.Success(Percentage.FromFraction((decimal)mid));
+            if (value > 1d)
                 low = mid;
-            }
             else
-            {
                 high = mid;
-            }
         }
-
-        // Convert monthly rate to annual rate using effective annual rate formula
-        decimal annualRate = DecimalPower(1m + mid, 12) - 1m;
-        return new Percentage(annualRate);
+        return AprcCalculationResult.Failure("APRC did not converge within the iteration limit.");
     }
 
-    private static decimal DecimalPower(decimal baseValue, int exponent)
+    private static double PresentValue((double Amount, double Years)[] flows, double rate)
     {
-        decimal result = 1m;
-        for (int i = 0; i < exponent; i++)
-        {
-            result *= baseValue;
-        }
-        return result;
+        double sum = 0;
+        foreach ((double amount, double years) in flows)
+            sum += amount * Math.Exp(-years * Math.Log(1d + rate));
+        return sum;
     }
 }

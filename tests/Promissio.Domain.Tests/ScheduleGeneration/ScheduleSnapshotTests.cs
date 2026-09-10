@@ -15,7 +15,7 @@ public class ScheduleSnapshotTests
     private readonly IInterestCalculator _interestCalculator = new InterestCalculator();
 
     [Fact]
-    public void AnnuitySchedule_CanonicalCase_MatchesSnapshot()
+    public async Task AnnuitySchedule_CanonicalCase_MatchesSnapshot()
     {
         // Arrange
         var principal = new Money(10000, "USD");
@@ -26,11 +26,11 @@ public class ScheduleSnapshotTests
         var schedule = generator.Generate(principal, rate, term, _startDate).ToList();
 
         // Act & Assert
-        Verify(schedule);
+        await Verify(schedule);
     }
 
     [Fact]
-    public void DifferentiatedSchedule_CanonicalCase_MatchesSnapshot()
+    public async Task DifferentiatedSchedule_CanonicalCase_MatchesSnapshot()
     {
         // Arrange
         var principal = new Money(10000, "USD");
@@ -41,11 +41,11 @@ public class ScheduleSnapshotTests
         var schedule = generator.Generate(principal, rate, term, _startDate).ToList();
 
         // Act & Assert
-        Verify(schedule);
+        await Verify(schedule);
     }
 
     [Fact]
-    public void BulletSchedule_CanonicalCase_MatchesSnapshot()
+    public async Task BulletSchedule_CanonicalCase_MatchesSnapshot()
     {
         // Arrange
         var principal = new Money(10000, "USD");
@@ -56,11 +56,11 @@ public class ScheduleSnapshotTests
         var schedule = generator.Generate(principal, rate, term, _startDate).ToList();
 
         // Act & Assert
-        Verify(schedule);
+        await Verify(schedule);
     }
 
     [Fact]
-    public void CustomSchedule_CanonicalCase_MatchesSnapshot()
+    public async Task CustomSchedule_CanonicalCase_MatchesSnapshot()
     {
         // Arrange
         var principal = new Money(10000, "USD");
@@ -79,6 +79,6 @@ public class ScheduleSnapshotTests
         var schedule = generator.Generate(principal, rate, term, _startDate).ToList();
 
         // Act & Assert
-        Verify(schedule);
+        await Verify(schedule);
     }
 }
