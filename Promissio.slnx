@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Promissio.Benchmarks/Promissio.Benchmarks.csproj" />
+    <Project Path="benchmarks/Promissio.Domain.Benchmarks/Promissio.Domain.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Promissio.AI.McpServer/Promissio.AI.McpServer.csproj" />
     <Project Path="src/Promissio.AI/Promissio.AI.csproj" />

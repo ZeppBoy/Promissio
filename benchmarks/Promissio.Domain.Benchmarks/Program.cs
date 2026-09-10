@@ -10,7 +10,6 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        BenchmarkRunner.Run<DayCountFractionBenchmarks>();
-        BenchmarkRunner.Run<InterestCalculationBenchmarks>();
+        BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
     }
 }

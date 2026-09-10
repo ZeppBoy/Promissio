@@ -29,7 +29,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `bui
 
 ## Code Standards
 
-- Run `dotnet format` before committing. CI will reject unformatted code.
+- Run `dotnet format` before committing. CI currently checks the maintained scope described in [verification](docs/verification/README.md). Run `pwsh ./tools/verify.ps1` for the shared local/CI checks.
 - All tests must pass. Do not delete or disable tests.
 - Follow the rules in [AGENTS.md](AGENTS.md) for coding conventions, domain modeling, and banking semantics.
 - Read relevant ADRs before modifying a subsystem.
