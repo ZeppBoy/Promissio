@@ -15,6 +15,8 @@ public sealed class LoanCreated : LoanEvent
 {
     public LoanCreated(
         LoanId loanId,
+        Guid loanApplicationId,
+        int termsVersion,
         LocalDate effectiveDate,
         Instant recordedAt,
         Guid correlationId,
@@ -25,12 +27,20 @@ public sealed class LoanCreated : LoanEvent
         LocalDate firstPaymentDate)
         : base(loanId, effectiveDate, recordedAt, correlationId)
     {
+        LoanApplicationId = loanApplicationId;
+        TermsVersion = termsVersion;
         Principal = principal;
         Rate = rate;
         Term = term;
         DisbursementDate = disbursementDate;
         FirstPaymentDate = firstPaymentDate;
     }
+
+    /// <summary>The originating loan application ID (idempotency key for handoff).</summary>
+    public Guid LoanApplicationId { get; }
+
+    /// <summary>The approved and accepted terms version (immutable per E-2).</summary>
+    public int TermsVersion { get; }
 
     public ValueObjects.Money Principal { get; }
     public InterestRate Rate { get; }

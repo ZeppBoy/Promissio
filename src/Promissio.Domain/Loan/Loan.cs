@@ -62,6 +62,7 @@ public sealed class Loan
     /// </summary>
     /// <param name="id">The loan identity.</param>
     /// <param name="loanApplicationId">The originating loan application (idempotency key).</param>
+    /// <param name="termsVersion">The approved and accepted terms version (immutable per E-2).</param>
     /// <param name="principal">The loan principal.</param>
     /// <param name="rate">The interest rate.</param>
     /// <param name="term">The loan term.</param>
@@ -73,6 +74,7 @@ public sealed class Loan
     public Loan(
         LoanId id,
         Guid loanApplicationId,
+        int termsVersion,
         Money principal,
         InterestRate rate,
         LoanTerm term,
@@ -89,6 +91,9 @@ public sealed class Loan
         if (principal.Amount <= 0)
             throw new ArgumentOutOfRangeException(nameof(principal), "Principal must be positive.");
 
+        if (termsVersion <= 0)
+            throw new ArgumentOutOfRangeException(nameof(termsVersion), "Terms version must be positive.");
+
         if (firstPaymentDate < disbursementDate)
             throw new ArgumentOutOfRangeException(nameof(firstPaymentDate),
                 "First payment date must be on or after the disbursement date.");
@@ -103,9 +108,12 @@ public sealed class Loan
         CreationDate = disbursementDate;
         State = LoanState.Disbursed;
         LoanApplicationId = loanApplicationId;
+        TermsVersion = termsVersion;
 
         _uncommittedEvents.Add(new LoanCreated(
             id,
+            loanApplicationId,
+            termsVersion,
             disbursementDate,
             recordedAt,
             correlationId,
@@ -119,18 +127,31 @@ public sealed class Loan
     /// <summary>The originating loan application ID (idempotency key for handoff).</summary>
     public Guid LoanApplicationId { get; }
 
+    /// <summary>The approved and accepted terms version (immutable per E-2).</summary>
+    public int TermsVersion { get; }
+
     /// <summary>
     /// Transitions the loan from Disbursed to Active on the first business day after disbursement.
     /// </summary>
-    /// <param name="effectiveDate">The business-effective date of activation.</param>
+    /// <param name="effectiveDate">The business-effective date of activation. Must be a business day after disbursement.</param>
+    /// <param name="calendar">The holiday calendar used to validate the effective date is a business day.</param>
     /// <param name="recordedAt">The recorded time.</param>
     /// <param name="correlationId">Correlation identifier.</param>
-    /// <exception cref="InvalidStateTransitionException">If the loan is not in the Disbursed state.</exception>
-    public void Activate(LocalDate effectiveDate, Instant recordedAt, Guid correlationId)
+    /// <exception cref="InvalidStateTransitionException">If the loan is not in the Disbursed state, or the effective date is not the first business day after disbursement.</exception>
+    public void Activate(LocalDate effectiveDate, HolidayCalendar calendar, Instant recordedAt, Guid correlationId)
     {
         if (State != LoanState.Disbursed)
             throw new InvalidStateTransitionException(State, "Activate",
                 $"Loan can only be activated from Disbursed state, not {State}.");
+
+        if (calendar.IsHoliday(effectiveDate))
+            throw new InvalidStateTransitionException(State, "Activate",
+                $"Activation date {effectiveDate} is not a business day.");
+
+        var firstBusinessDay = calendar.NextBusinessDay(DisbursementDate.PlusDays(1));
+        if (effectiveDate != firstBusinessDay)
+            throw new InvalidStateTransitionException(State, "Activate",
+                $"Activation must occur on the first business day after disbursement ({firstBusinessDay}), not {effectiveDate}.");
 
         State = LoanState.Active;
         _uncommittedEvents.Add(new LoanActivated(
@@ -154,6 +175,10 @@ public sealed class Loan
     /// Business validation (E-5): a payment of zero or negative amount returns
     /// <see cref="Result{T}"/> with an error. A payment to a loan in a terminal
     /// state throws <see cref="InvalidStateTransitionException"/>.
+    ///
+    /// NOTE: Payment allocation (interest vs principal split) is not yet approved.
+    /// This method emits the PaymentReceived event and validates invariants,
+    /// but does NOT mutate RemainingBalance until the allocation contract is finalized.
     /// </remarks>
     public Result<Money> RecordPayment(Money amount, LocalDate effectiveDate, Instant recordedAt, Guid correlationId)
     {
@@ -168,21 +193,18 @@ public sealed class Loan
             return Result<Money>.Failure(
                 $"Payment amount ({amount}) exceeds remaining balance ({RemainingBalance}).");
 
-        Money newBalance = RemainingBalance - amount;
-        RemainingBalance = newBalance;
-
-        // State transition back to Active is handled by the aging process, not by payment.
-        // The payment event itself does not change state.
+        // Allocation contract not yet approved — do not mutate RemainingBalance.
+        // The event is emitted with the current balance until allocation is finalized.
         var paymentEvent = new PaymentReceived(
             Id,
             effectiveDate,
             recordedAt,
             correlationId,
             amount,
-            newBalance);
+            RemainingBalance);
 
         _uncommittedEvents.Add(paymentEvent);
-        return Result<Money>.Success(newBalance);
+        return Result<Money>.Success(RemainingBalance);
     }
 
     /// <summary>
@@ -194,11 +216,13 @@ public sealed class Loan
     /// <param name="correlationId">Correlation identifier.</param>
     /// <param name="pastDueThreshold">Days past due threshold for PastDue state (default 1).</param>
     /// <param name="defaultThreshold">Days past due threshold for Defaulted state (default 90).</param>
-    /// <exception cref="InvalidStateTransitionException">If the loan is in a state from which aging cannot transition.</exception>
+    /// <exception cref="InvalidStateTransitionException">If the aging input would produce a transition that is not present in the documented transition table.</exception>
     /// <remarks>
-    /// Per AGENTS.md §8:
-    /// - Active → InGrace → PastDue based on days past due threshold (default 1).
-    /// - PastDue → Defaulted based on days past due threshold (default 90).
+    /// Per AGENTS.md §8 and the transition table in docs/domain/loan-state-machine.md:
+    /// - Active → InGrace / PastDue / Defaulted based on days past due thresholds (defaults 1 and 90).
+    /// - InGrace → PastDue / Defaulted; PastDue → Defaulted.
+    /// - Cure (days = 0) is only valid from InGrace and PastDue. A Defaulted loan
+    ///   cannot cure, and aging from Disbursed, Defaulted, or a terminal state always throws.
     /// </remarks>
     public void ApplyAging(
         int daysPastDue,
@@ -211,30 +235,67 @@ public sealed class Loan
         if (daysPastDue < 0)
             throw new ArgumentOutOfRangeException(nameof(daysPastDue), "Days past due cannot be negative.");
 
-        // Terminal states cannot age.
-        if (State is LoanState.WrittenOff or LoanState.Restructured or LoanState.Recovered)
-            throw new InvalidStateTransitionException(State, "ApplyAging",
-                $"Cannot apply aging to a loan in {State} state.");
-
+        // Determine the target state implied by the aging input (rows 3–12 of the
+        // transition table; the target is independent of the source state).
+        LoanState target;
         if (daysPastDue == 0)
+            target = LoanState.Active;
+        else if (daysPastDue >= defaultThreshold)
+            target = LoanState.Defaulted;
+        else if (daysPastDue >= pastDueThreshold)
+            target = LoanState.PastDue;
+        else
+            target = LoanState.InGrace;
+
+        // Validate the (source, target) pair against the documented transition table
+        // before mutating anything.
+        if (target != LoanState.Active && State == target)
+            throw new InvalidStateTransitionException(State, "ApplyAging",
+                $"Aging with {daysPastDue} days past due would keep the loan in its current state {State}; " +
+                    "repeat aging with the same delinquency band is not a valid transition.");
+
+        var isExplicitNoOp = (State, target) switch
         {
-            // No aging: if the loan was delinquent, it returns to Active.
-            if (State is LoanState.PastDue or LoanState.InGrace or LoanState.Defaulted)
-            {
-                State = LoanState.Active;
-                DaysPastDue = null;
-                _uncommittedEvents.Add(new LoanBecameActive(
-                    Id, effectiveDate, recordedAt, correlationId, DaysPastDue ?? 0));
-            }
+            // Row 3: Active → Active with days = 0 is an explicit no-op (no event).
+            (LoanState.Active, LoanState.Active) => daysPastDue == 0,
+            // Row 12: PastDue re-aging inside [pastDueThreshold, defaultThreshold).
+            (LoanState.PastDue, LoanState.PastDue) => daysPastDue >= pastDueThreshold,
+            // Row 8: InGrace re-aging into the PastDue band.
+            (LoanState.InGrace, LoanState.PastDue) => daysPastDue >= pastDueThreshold,
+            _ => false
+        };
+
+        var isValidTransition = (State, target) switch
+        {
+            (LoanState.Active, _) => true,
+            (LoanState.InGrace, LoanState.Active) => true,
+            (LoanState.PastDue, LoanState.Active) => true,
+            (LoanState.InGrace, LoanState.PastDue or LoanState.Defaulted) => true,
+            (LoanState.PastDue, LoanState.Defaulted) => true,
+            _ => false
+        };
+
+        if (!isExplicitNoOp && !isValidTransition)
+            throw new InvalidStateTransitionException(State, "ApplyAging",
+                $"Aging with {daysPastDue} days past due would transition from {State} to {target}, " +
+                    "which is not present in the loan state transition table.");
+
+        if (isExplicitNoOp)
+            return;
+
+        if (target == LoanState.Active)
+        {
+            // Cure: only InGrace and PastDue can return to Active (rows 7 and 10).
+            int previousDaysPastDue = DaysPastDue ?? 0;
+            State = LoanState.Active;
+            DaysPastDue = null;
+            _uncommittedEvents.Add(new LoanBecameActive(
+                Id, effectiveDate, recordedAt, correlationId, previousDaysPastDue));
             return;
         }
 
         if (daysPastDue >= defaultThreshold)
         {
-            if (State is LoanState.Disbursed)
-                throw new InvalidStateTransitionException(State, "ApplyAging",
-                    $"Cannot age a loan that is still Disbursed.");
-
             State = LoanState.Defaulted;
             DaysPastDue = daysPastDue;
             _uncommittedEvents.Add(new LoanDefaulted(
@@ -242,10 +303,6 @@ public sealed class Loan
         }
         else if (daysPastDue >= pastDueThreshold)
         {
-            if (State is LoanState.Disbursed)
-                throw new InvalidStateTransitionException(State, "ApplyAging",
-                    $"Cannot age a loan that is still Disbursed.");
-
             State = LoanState.PastDue;
             DaysPastDue = daysPastDue;
             _uncommittedEvents.Add(new LoanBecamePastDue(

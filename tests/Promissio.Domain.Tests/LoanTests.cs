@@ -28,10 +28,13 @@ public class LoanTests
     private static readonly Guid CorrelationId = Guid.NewGuid();
     private static readonly LoanId LoanId1 = LoanId.New();
     private static readonly Guid AppId = Guid.NewGuid();
+    private static readonly int TermsVersion = 1;
+    private static readonly HolidayCalendar NoHolidays = new(Array.Empty<LocalDate>());
 
     private static LoanRoot CreateLoan() => new(
         LoanId1,
         AppId,
+        TermsVersion,
         new Money(100_000m, "EUR"),
         new FixedRate(Percentage.FromPercent(5m), new Actual365()),
         LoanTerm.FromMonths(120),
@@ -65,15 +68,29 @@ public class LoanTests
         loan.UncommittedEvents.Should().HaveCount(1);
         var @event = loan.UncommittedEvents[0].Should().BeOfType<LoanCreated>().Subject;
         @event.LoanId.Should().Be(LoanId1);
+        @event.LoanApplicationId.Should().Be(AppId);
+        @event.TermsVersion.Should().Be(TermsVersion);
         @event.Principal.Should().Be(new Money(100_000m, "EUR"));
         @event.DisbursementDate.Should().Be(DisbursementDate);
+    }
+
+    [Fact]
+    public void Constructor_ZeroTermsVersion_Throws()
+    {
+        Action action = () => new LoanRoot(
+            LoanId1, AppId, 0, new Money(100_000m, "EUR"),
+            new FixedRate(Percentage.FromPercent(5m), new Actual365()),
+            LoanTerm.FromMonths(120), DisbursementDate, FirstPaymentDate, RecordedAt, CorrelationId);
+
+        action.Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*Terms version*");
     }
 
     [Fact]
     public void Constructor_ZeroPrincipal_Throws()
     {
         Action action = () => new LoanRoot(
-            LoanId1, AppId, new Money(0, "EUR"),
+            LoanId1, AppId, 1, new Money(0, "EUR"),
             new FixedRate(Percentage.FromPercent(5m), new Actual365()),
             LoanTerm.FromMonths(120), DisbursementDate, FirstPaymentDate, RecordedAt, CorrelationId);
 
@@ -85,7 +102,7 @@ public class LoanTests
     public void Constructor_NegativePrincipal_Throws()
     {
         Action action = () => new LoanRoot(
-            LoanId1, AppId, new Money(-1000, "EUR"),
+            LoanId1, AppId, 1, new Money(-1000, "EUR"),
             new FixedRate(Percentage.FromPercent(5m), new Actual365()),
             LoanTerm.FromMonths(120), DisbursementDate, FirstPaymentDate, RecordedAt, CorrelationId);
 
@@ -97,7 +114,7 @@ public class LoanTests
     public void Constructor_FirstPaymentBeforeDisbursement_Throws()
     {
         Action action = () => new LoanRoot(
-            LoanId1, AppId, new Money(100_000m, "EUR"),
+            LoanId1, AppId, 1, new Money(100_000m, "EUR"),
             new FixedRate(Percentage.FromPercent(5m), new Actual365()),
             LoanTerm.FromMonths(120), DisbursementDate, DisbursementDate.PlusDays(-1),
             RecordedAt, CorrelationId);
@@ -110,7 +127,7 @@ public class LoanTests
     public void Constructor_FirstPaymentOnDisbursementDate_IsValid()
     {
         var loan = new LoanRoot(
-            LoanId1, AppId, new Money(100_000m, "EUR"),
+            LoanId1, AppId, 1, new Money(100_000m, "EUR"),
             new FixedRate(Percentage.FromPercent(5m), new Actual365()),
             LoanTerm.FromMonths(120), DisbursementDate, DisbursementDate,
             RecordedAt, CorrelationId);
@@ -122,7 +139,7 @@ public class LoanTests
     public void Constructor_NullPrincipal_Throws()
     {
         Action action = () => new LoanRoot(
-            LoanId1, AppId, null!,
+            LoanId1, AppId, 1, null!,
             new FixedRate(Percentage.FromPercent(5m), new Actual365()),
             LoanTerm.FromMonths(120), DisbursementDate, FirstPaymentDate, RecordedAt, CorrelationId);
 
@@ -138,7 +155,7 @@ public class LoanTests
     {
         var loan = CreateLoan();
 
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.State.Should().Be(LoanState.Active);
     }
@@ -148,9 +165,31 @@ public class LoanTests
     {
         var loan = CreateLoan();
 
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.UncommittedEvents.Should().ContainSingle(e => e is LoanActivated);
+    }
+
+    [Fact]
+    public void Activate_OnNonBusinessDay_Throws()
+    {
+        var loan = CreateLoan();
+        var saturday = new LocalDate(2026, 1, 17); // Saturday
+
+        Action action = () => loan.Activate(saturday, NoHolidays, RecordedAt, CorrelationId);
+
+        action.Should().Throw<InvalidStateTransitionException>();
+    }
+
+    [Fact]
+    public void Activate_NotFirstBusinessDay_Throws()
+    {
+        var loan = CreateLoan();
+        var secondBusinessDay = new LocalDate(2026, 1, 19); // Monday = 2nd business day after Thu 15th
+
+        Action action = () => loan.Activate(secondBusinessDay, NoHolidays, RecordedAt, CorrelationId);
+
+        action.Should().Throw<InvalidStateTransitionException>();
     }
 
     [Theory]
@@ -161,18 +200,16 @@ public class LoanTests
     [InlineData(LoanState.WrittenOff)]
     [InlineData(LoanState.Restructured)]
     [InlineData(LoanState.Recovered)]
-    public void Activate_FromNonDisbursedState_Throws(LoanState state)
+    public void Activate_FromNonDisbursedState_Throws(LoanState requestedState)
     {
-        var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        var loan = DriveLoanToState(requestedState);
+        loan.State.Should().Be(requestedState, "the loan must be constructed in the requested state before the attempt");
 
-        // For terminal states, we can't easily get there, so we test the key ones
-        if (state == LoanState.Active)
-        {
-            Action action = () => loan.Activate(DisbursementDate.PlusDays(2), RecordedAt, CorrelationId);
-            action.Should().Throw<InvalidStateTransitionException>()
-                .Which.CurrentState.Should().Be(LoanState.Active);
-        }
+        Action action = () => loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+
+        action.Should().Throw<InvalidStateTransitionException>()
+            .Which.CurrentState.Should().Be(requestedState);
+        loan.State.Should().Be(requestedState, "state must be unchanged after a rejected activation");
     }
 
     #endregion
@@ -180,36 +217,38 @@ public class LoanTests
     #region RecordPayment
 
     [Fact]
-    public void RecordPayment_ValidPayment_ReducesBalance()
+    public void RecordPayment_ValidPayment_DoesNotMutateBalance_AllocationDeferred()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         var result = loan.RecordPayment(new Money(5_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
         result.IsSuccess.Should().BeTrue();
-        loan.RemainingBalance.Should().Be(new Money(95_000m, "EUR"));
+        // Allocation contract not yet approved — balance is not mutated.
+        loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
     }
 
     [Fact]
     public void RecordPayment_EmitsPaymentReceivedEvent()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ClearUncommittedEvents();
 
         loan.RecordPayment(new Money(5_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
         var @event = loan.UncommittedEvents.Should().ContainSingle().Which.Should().BeOfType<PaymentReceived>().Subject;
         @event.Amount.Should().Be(new Money(5_000m, "EUR"));
-        @event.RemainingBalance.Should().Be(new Money(95_000m, "EUR"));
+        // Allocation deferred — balance in event reflects current (unmutated) balance.
+        @event.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
     }
 
     [Fact]
     public void RecordPayment_ZeroAmount_ReturnsFailure()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         var result = loan.RecordPayment(new Money(0, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
@@ -221,7 +260,7 @@ public class LoanTests
     public void RecordPayment_NegativeAmount_ReturnsFailure()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         var result = loan.RecordPayment(new Money(-100m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
@@ -233,7 +272,7 @@ public class LoanTests
     public void RecordPayment_ExceedsBalance_ReturnsFailure()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         var result = loan.RecordPayment(new Money(200_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
@@ -245,7 +284,7 @@ public class LoanTests
     public void RecordPayment_DoesNotChangeState()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.RecordPayment(new Money(5_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
@@ -257,7 +296,7 @@ public class LoanTests
     {
         var loan = CreateLoan();
         // Manually set to Defaulted then WriteOff to reach WrittenOff
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
         loan.WriteOff("Bad debt", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
 
@@ -271,7 +310,7 @@ public class LoanTests
     public void RecordPayment_OnRestructured_Throws()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
         loan.Restructure("Extended term", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
 
@@ -285,7 +324,7 @@ public class LoanTests
     public void RecordPayment_OnRecovered_Throws()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
         loan.Recover("Asset sold", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
 
@@ -299,7 +338,7 @@ public class LoanTests
     public void RecordPayment_Failure_DoesNotChangeState()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         var balanceBefore = loan.RemainingBalance;
 
         loan.RecordPayment(new Money(0, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
@@ -316,7 +355,7 @@ public class LoanTests
     public void ApplyAging_FromActive_ZeroDays_StaysActive()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.ApplyAging(0, DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
 
@@ -328,7 +367,7 @@ public class LoanTests
     public void ApplyAging_FromActive_1Day_TransitionsToPastDue()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.ApplyAging(1, DisbursementDate.PlusDays(30), RecordedAt, CorrelationId,
             pastDueThreshold: 1, defaultThreshold: 90);
@@ -341,7 +380,7 @@ public class LoanTests
     public void ApplyAging_FromActive_10Days_TransitionsToPastDue()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.ApplyAging(10, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId,
             pastDueThreshold: 1, defaultThreshold: 90);
@@ -354,7 +393,7 @@ public class LoanTests
     public void ApplyAging_FromActive_90Days_TransitionsToDefaulted()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.ApplyAging(90, DisbursementDate.PlusDays(120), RecordedAt, CorrelationId,
             pastDueThreshold: 1, defaultThreshold: 90);
@@ -367,7 +406,7 @@ public class LoanTests
     public void ApplyAging_FromActive_120Days_TransitionsToDefaulted()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.ApplyAging(120, DisbursementDate.PlusDays(150), RecordedAt, CorrelationId,
             pastDueThreshold: 1, defaultThreshold: 90);
@@ -380,7 +419,7 @@ public class LoanTests
     public void ApplyAging_FromPastDue_0Days_TransitionsToActive()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(10, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId, 1, 90);
 
         loan.ApplyAging(0, DisbursementDate.PlusDays(41), RecordedAt, CorrelationId, 1, 90);
@@ -395,7 +434,7 @@ public class LoanTests
         // With pastDueThreshold = 1, there's no "grace" range (0 < days < 1 is empty).
         // We test InGrace by using a custom threshold where grace exists.
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         // With pastDueThreshold = 5, days 1-4 are InGrace
         loan.ApplyAging(3, DisbursementDate.PlusDays(10), RecordedAt, CorrelationId,
@@ -412,7 +451,7 @@ public class LoanTests
     public void ApplyAging_EmitsCorrectEvent_ForPastDue()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ClearUncommittedEvents();
 
         loan.ApplyAging(10, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId, 1, 90);
@@ -424,7 +463,7 @@ public class LoanTests
     public void ApplyAging_EmitsCorrectEvent_ForDefaulted()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ClearUncommittedEvents();
 
         loan.ApplyAging(90, DisbursementDate.PlusDays(120), RecordedAt, CorrelationId, 1, 90);
@@ -451,7 +490,7 @@ public class LoanTests
     public void ApplyAging_FromWrittenOff_Throws()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
         loan.WriteOff("Bad debt", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
 
@@ -465,7 +504,7 @@ public class LoanTests
     public void ApplyAging_NegativeDays_Throws()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         Action action = () => loan.ApplyAging(-1, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId, 1, 90);
 
@@ -476,7 +515,7 @@ public class LoanTests
     public void ApplyAging_DefaultThreshold_CanBeCustomized()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         // Custom: default at 30 days instead of 90
         loan.ApplyAging(30, DisbursementDate.PlusDays(60), RecordedAt, CorrelationId, 1, 30);
@@ -492,7 +531,7 @@ public class LoanTests
     public void WriteOff_FromDefaulted_TransitionsToWrittenOff()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
 
         loan.WriteOff("Bad debt", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
@@ -504,7 +543,7 @@ public class LoanTests
     public void WriteOff_EmitsLoanWrittenOffEvent()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
         loan.ClearUncommittedEvents();
 
@@ -522,25 +561,27 @@ public class LoanTests
     [InlineData(LoanState.WrittenOff)]
     [InlineData(LoanState.Restructured)]
     [InlineData(LoanState.Recovered)]
-    public void WriteOff_FromNonDefaultedState_Throws(LoanState _)
+    public void WriteOff_FromNonDefaultedState_Throws(LoanState requestedState)
     {
-        // The state parameter documents which states are tested; the loan is
-        // created in Disbursed state and activated, then WriteOff is attempted
-        // from a non-Defaulted state in each case.
-        var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        var loan = DriveLoanToState(requestedState);
+        loan.State.Should().Be(requestedState, "the loan must be constructed in the requested state before the attempt");
+        var eventsBefore = loan.UncommittedEvents.Count;
 
         Action action = () => loan.WriteOff("Bad debt", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
 
         action.Should().Throw<InvalidStateTransitionException>()
-            .Which.AttemptedCommand.Should().Be("WriteOff");
+            .Which.CurrentState.Should().Be(requestedState);
+
+        // State unchanged, no new events emitted.
+        loan.State.Should().Be(requestedState);
+        loan.UncommittedEvents.Count.Should().Be(eventsBefore);
     }
 
     [Fact]
     public void WriteOff_EmptyReason_Throws()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
 
         Action action = () => loan.WriteOff("", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
@@ -556,7 +597,7 @@ public class LoanTests
     public void Restructure_FromDefaulted_TransitionsToRestructured()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
 
         loan.Restructure("Extended term to 180 months", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
@@ -568,7 +609,7 @@ public class LoanTests
     public void Restructure_EmitsLoanRestructuredEvent()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
         loan.ClearUncommittedEvents();
 
@@ -582,7 +623,7 @@ public class LoanTests
     public void Restructure_FromNonDefaulted_Throws()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         Action action = () => loan.Restructure("Extended term", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
 
@@ -598,7 +639,7 @@ public class LoanTests
     public void Recover_FromDefaulted_TransitionsToRecovered()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
 
         loan.Recover("Collateral sold", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
@@ -610,7 +651,7 @@ public class LoanTests
     public void Recover_EmitsLoanRecoveredEvent()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
         loan.ClearUncommittedEvents();
 
@@ -624,7 +665,7 @@ public class LoanTests
     public void Recover_FromNonDefaulted_Throws()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         Action action = () => loan.Recover("Collateral sold", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
 
@@ -672,7 +713,7 @@ public class LoanTests
         var loan = CreateLoan();
         loan.State.Should().Be(LoanState.Disbursed);
 
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
         loan.State.Should().Be(LoanState.Active);
 
         loan.ApplyAging(10, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId, 1, 90);
@@ -686,16 +727,132 @@ public class LoanTests
     }
 
     [Fact]
-    public void FullLifecycle_PaymentReducesBalance()
+    public void FullLifecycle_PaymentEmitsEvent_BalanceUnchangedUntilAllocationApproved()
     {
         var loan = CreateLoan();
-        loan.Activate(DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
         loan.RecordPayment(new Money(10_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
-        loan.RemainingBalance.Should().Be(new Money(90_000m, "EUR"));
+        loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
 
         loan.RecordPayment(new Money(10_000m, "EUR"), FirstPaymentDate.PlusMonths(1), RecordedAt, CorrelationId);
-        loan.RemainingBalance.Should().Be(new Money(80_000m, "EUR"));
+        loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
+    }
+
+    #endregion
+
+    #region Test Helpers
+
+    /// <summary>
+    /// Constructs a loan and drives it to the requested state via the public command surface,
+    /// so parameterized rejection tests exercise every state they advertise.
+    /// </summary>
+    private static LoanRoot DriveLoanToState(LoanState target)
+    {
+        var loan = CreateLoan();
+
+        switch (target)
+        {
+            case LoanState.Disbursed:
+                return loan;
+            case LoanState.Active:
+                loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+                return loan;
+            case LoanState.InGrace:
+                loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+                // pastDueThreshold = 5, so 1–4 days past due lands in InGrace.
+                loan.ApplyAging(3, DisbursementDate.PlusDays(10), RecordedAt, CorrelationId, 5, 90);
+                return loan;
+            case LoanState.PastDue:
+                loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+                loan.ApplyAging(10, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId, 1, 90);
+                return loan;
+            case LoanState.Defaulted:
+            case LoanState.WrittenOff:
+            case LoanState.Restructured:
+            case LoanState.Recovered:
+                loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+                loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(target));
+        }
+
+        switch (target)
+        {
+            case LoanState.WrittenOff:
+                loan.WriteOff("Bad debt", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
+                break;
+            case LoanState.Restructured:
+                loan.Restructure("Extended term", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
+                break;
+            case LoanState.Recovered:
+                loan.Recover("Collateral sold", DisbursementDate.PlusDays(100), RecordedAt, CorrelationId);
+                break;
+        }
+
+        return loan;
+    }
+
+    #endregion
+
+    #region Regression Tests (PR Review #1)
+
+    [Fact]
+    public void DisbursedCannotEnterGraceThroughAging()
+    {
+        var loan = CreateLoan();
+
+        Action action = () => loan.ApplyAging(1, DisbursementDate.PlusDays(10), RecordedAt, CorrelationId);
+
+        action.Should().Throw<InvalidStateTransitionException>()
+            .Which.CurrentState.Should().Be(LoanState.Disbursed);
+        loan.State.Should().Be(LoanState.Disbursed);
+    }
+
+    [Fact]
+    public void DefaultedCannotBecomeActiveThroughAging()
+    {
+        var loan = CreateLoan();
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+        loan.ApplyAging(100, DisbursementDate.PlusDays(100), RecordedAt, CorrelationId, 1, 90);
+        loan.State.Should().Be(LoanState.Defaulted);
+
+        Action action = () => loan.ApplyAging(0, DisbursementDate.PlusDays(101), RecordedAt, CorrelationId);
+
+        action.Should().Throw<InvalidStateTransitionException>()
+            .Which.CurrentState.Should().Be(LoanState.Defaulted);
+        loan.State.Should().Be(LoanState.Defaulted);
+    }
+
+    [Fact]
+    public void CureEventPreservesPreviousDaysPastDue()
+    {
+        var loan = CreateLoan();
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+        loan.ApplyAging(10, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId, 1, 90);
+        loan.State.Should().Be(LoanState.PastDue);
+        loan.DaysPastDue.Should().Be(10);
+
+        loan.ClearUncommittedEvents();
+        loan.ApplyAging(0, DisbursementDate.PlusDays(41), RecordedAt, CorrelationId);
+
+        loan.State.Should().Be(LoanState.Active);
+        var @event = loan.UncommittedEvents.Should().ContainSingle().Which.Should().BeOfType<LoanBecameActive>().Subject;
+        @event.PreviousDaysPastDue.Should().Be(10);
+    }
+
+    [Fact]
+    public void ActiveWithZeroDays_IsNoOp_NoEventEmitted()
+    {
+        var loan = CreateLoan();
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+        loan.ClearUncommittedEvents();
+
+        loan.ApplyAging(0, DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
+
+        loan.State.Should().Be(LoanState.Active);
+        loan.UncommittedEvents.Should().BeEmpty();
     }
 
     #endregion
