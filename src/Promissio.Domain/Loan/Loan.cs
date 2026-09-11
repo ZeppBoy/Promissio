@@ -165,20 +165,26 @@ public sealed class Loan
     /// <summary>
     /// Records a payment received against the loan.
     /// </summary>
-    /// <param name="amount">The payment amount.</param>
+    /// <param name="amount">The payment amount. Must be in the same currency as the loan balance.</param>
     /// <param name="effectiveDate">The business-effective date of the payment.</param>
     /// <param name="recordedAt">The recorded time.</param>
     /// <param name="correlationId">Correlation identifier.</param>
-    /// <returns><see cref="Result{T}"/> containing the new balance on success, or an error message on failure.</returns>
+    /// <returns>
+    /// <see cref="Result{T}"/> containing an error message. Payment allocation
+    /// (interest vs principal split) is not yet approved, so this operation is
+    /// explicitly unavailable and always returns a failure result.
+    /// </returns>
     /// <exception cref="InvalidStateTransitionException">If the loan is in a terminal state (WrittenOff, Restructured, Recovered).</exception>
     /// <remarks>
-    /// Business validation (E-5): a payment of zero or negative amount returns
+    /// Business validation (E-5): a payment of zero or negative amount, a
+    /// currency mismatch, or a payment exceeding the remaining balance returns
     /// <see cref="Result{T}"/> with an error. A payment to a loan in a terminal
     /// state throws <see cref="InvalidStateTransitionException"/>.
     ///
-    /// NOTE: Payment allocation (interest vs principal split) is not yet approved.
-    /// This method emits the PaymentReceived event and validates invariants,
-    /// but does NOT mutate RemainingBalance until the allocation contract is finalized.
+    /// Payment allocation (interest vs principal split) is not yet approved.
+    /// Until the allocation contract is finalized, this method validates inputs
+    /// but returns a failure result indicating the operation is unavailable.
+    /// No <see cref="PaymentReceived"/> event is emitted.
     /// </remarks>
     public Result<Money> RecordPayment(Money amount, LocalDate effectiveDate, Instant recordedAt, Guid correlationId)
     {
@@ -189,22 +195,16 @@ public sealed class Loan
             throw new InvalidStateTransitionException(State, "RecordPayment",
                 $"Cannot record a payment on a loan in {State} state.");
 
+        if (amount.Currency != RemainingBalance.Currency)
+            return Result<Money>.Failure(
+                $"Payment currency ({amount.Currency}) does not match loan balance currency ({RemainingBalance.Currency}).");
+
         if (amount.Amount > RemainingBalance.Amount)
             return Result<Money>.Failure(
                 $"Payment amount ({amount}) exceeds remaining balance ({RemainingBalance}).");
 
-        // Allocation contract not yet approved — do not mutate RemainingBalance.
-        // The event is emitted with the current balance until allocation is finalized.
-        var paymentEvent = new PaymentReceived(
-            Id,
-            effectiveDate,
-            recordedAt,
-            correlationId,
-            amount,
-            RemainingBalance);
-
-        _uncommittedEvents.Add(paymentEvent);
-        return Result<Money>.Success(RemainingBalance);
+        return Result<Money>.Failure(
+            "Payment allocation is not yet available. The payment has not been processed.");
     }
 
     /// <summary>
@@ -247,21 +247,10 @@ public sealed class Loan
         else
             target = LoanState.InGrace;
 
-        // Validate the (source, target) pair against the documented transition table
-        // before mutating anything.
-        if (target != LoanState.Active && State == target)
-            throw new InvalidStateTransitionException(State, "ApplyAging",
-                $"Aging with {daysPastDue} days past due would keep the loan in its current state {State}; " +
-                    "repeat aging with the same delinquency band is not a valid transition.");
-
         var isExplicitNoOp = (State, target) switch
         {
             // Row 3: Active → Active with days = 0 is an explicit no-op (no event).
             (LoanState.Active, LoanState.Active) => daysPastDue == 0,
-            // Row 12: PastDue re-aging inside [pastDueThreshold, defaultThreshold).
-            (LoanState.PastDue, LoanState.PastDue) => daysPastDue >= pastDueThreshold,
-            // Row 8: InGrace re-aging into the PastDue band.
-            (LoanState.InGrace, LoanState.PastDue) => daysPastDue >= pastDueThreshold,
             _ => false
         };
 
@@ -272,6 +261,8 @@ public sealed class Loan
             (LoanState.PastDue, LoanState.Active) => true,
             (LoanState.InGrace, LoanState.PastDue or LoanState.Defaulted) => true,
             (LoanState.PastDue, LoanState.Defaulted) => true,
+            // Row 12: PastDue re-aging inside [pastDueThreshold, defaultThreshold).
+            (LoanState.PastDue, LoanState.PastDue) => daysPastDue >= pastDueThreshold,
             _ => false
         };
 

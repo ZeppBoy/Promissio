@@ -1,7 +1,7 @@
 # Loan State Machine
 
 > Status: Accepted.
-> Last updated: 2026-09-10.
+> Last updated: 2026-09-11.
 > Owner: Domain owner.
 > Related: AGENTS.md §8, ADR-0006 (Proposed), `docs/plan/phase-3-contract-review.md`.
 
@@ -37,8 +37,9 @@
 | 13 | `Defaulted` | WriteOff | Reason provided | `WrittenOff` | `LoanWrittenOff` | Write-off date |
 | 14 | `Defaulted` | Restructure | Plan provided | `Restructured` | `LoanRestructured` | Restructuring date |
 | 15 | `Defaulted` | Recover | Method provided | `Recovered` | `LoanRecovered` | Recovery date |
-| 16 | `Disbursed`, `Active`, `InGrace`, `PastDue` | RecordPayment(amount > 0) | amount ≤ remaining balance | *(state unchanged)* | `PaymentReceived` | Payment date |
+| 16 | `Disbursed`, `Active`, `InGrace`, `PastDue` | RecordPayment(amount > 0) | amount ≤ remaining balance; currency matches | *(state unchanged)* | *(none — allocation not yet available)* | — |
 | 17 | `Disbursed`, `Active`, `InGrace`, `PastDue` | RecordPayment(amount > balance) | — | *(state unchanged)* | *(none — Result failure)* | — |
+| 18 | `Disbursed`, `Active`, `InGrace`, `PastDue` | RecordPayment(currency mismatch) | — | *(state unchanged)* | *(none — Result failure)* | — |
 
 ## Invalid Transitions (throw `InvalidStateTransitionException`)
 
@@ -56,7 +57,9 @@
 | Command | Condition | Error |
 |---|---|---|
 | RecordPayment | amount ≤ 0 | "Payment amount must be positive." |
+| RecordPayment | currency mismatch | "Payment currency (…) does not match loan balance currency (…)." |
 | RecordPayment | amount > remaining balance | "Payment amount (…) exceeds remaining balance (…)." |
+| RecordPayment | allocation not yet available | "Payment allocation is not yet available. The payment has not been processed." |
 
 ## Failure Boundary (Owner Decision E-5, 2026-09-10)
 

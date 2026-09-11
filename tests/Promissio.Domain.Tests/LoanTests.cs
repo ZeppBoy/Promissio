@@ -217,20 +217,24 @@ public class LoanTests
     #region RecordPayment
 
     [Fact]
-    public void RecordPayment_ValidPayment_DoesNotMutateBalance_AllocationDeferred()
+    public void RecordPayment_ValidPayment_ReturnsFailure_AllocationNotYetAvailable()
     {
         var loan = CreateLoan();
         loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+        loan.ClearUncommittedEvents();
 
         var result = loan.RecordPayment(new Money(5_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
-        result.IsSuccess.Should().BeTrue();
-        // Allocation contract not yet approved — balance is not mutated.
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("not yet available");
+        // Balance is not mutated.
         loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
+        // No event is emitted.
+        loan.UncommittedEvents.Should().BeEmpty();
     }
 
     [Fact]
-    public void RecordPayment_EmitsPaymentReceivedEvent()
+    public void RecordPayment_DoesNotEmitEvent_AllocationNotYetAvailable()
     {
         var loan = CreateLoan();
         loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
@@ -238,10 +242,7 @@ public class LoanTests
 
         loan.RecordPayment(new Money(5_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
 
-        var @event = loan.UncommittedEvents.Should().ContainSingle().Which.Should().BeOfType<PaymentReceived>().Subject;
-        @event.Amount.Should().Be(new Money(5_000m, "EUR"));
-        // Allocation deferred — balance in event reflects current (unmutated) balance.
-        @event.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
+        loan.UncommittedEvents.Should().BeEmpty();
     }
 
     [Fact]
@@ -727,15 +728,17 @@ public class LoanTests
     }
 
     [Fact]
-    public void FullLifecycle_PaymentEmitsEvent_BalanceUnchangedUntilAllocationApproved()
+    public void FullLifecycle_PaymentNotProcessed_AllocationNotYetAvailable()
     {
         var loan = CreateLoan();
         loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
 
-        loan.RecordPayment(new Money(10_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
+        var result1 = loan.RecordPayment(new Money(10_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
+        result1.IsSuccess.Should().BeFalse();
         loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
 
-        loan.RecordPayment(new Money(10_000m, "EUR"), FirstPaymentDate.PlusMonths(1), RecordedAt, CorrelationId);
+        var result2 = loan.RecordPayment(new Money(10_000m, "EUR"), FirstPaymentDate.PlusMonths(1), RecordedAt, CorrelationId);
+        result2.IsSuccess.Should().BeFalse();
         loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
     }
 
@@ -852,6 +855,86 @@ public class LoanTests
         loan.ApplyAging(0, DisbursementDate.PlusDays(1), RecordedAt, CorrelationId);
 
         loan.State.Should().Be(LoanState.Active);
+        loan.UncommittedEvents.Should().BeEmpty();
+    }
+
+    #endregion
+
+    #region Regression Tests (PR Review #2)
+
+    [Fact]
+    public void ApplyAging_PastDue_10To11Days_UpdatesDaysAndEmitsEvent()
+    {
+        // Issue 1: A loan moving from 10 to 11 days overdue must update DaysPastDue
+        // and emit LoanBecamePastDue, not throw.
+        var loan = CreateLoan();
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+        loan.ApplyAging(10, DisbursementDate.PlusDays(40), RecordedAt, CorrelationId, 1, 90);
+        loan.State.Should().Be(LoanState.PastDue);
+        loan.DaysPastDue.Should().Be(10);
+
+        loan.ClearUncommittedEvents();
+        loan.ApplyAging(11, DisbursementDate.PlusDays(41), RecordedAt, CorrelationId, 1, 90);
+
+        loan.State.Should().Be(LoanState.PastDue);
+        loan.DaysPastDue.Should().Be(11);
+        var @event = loan.UncommittedEvents.Should().ContainSingle().Which.Should().BeOfType<LoanBecamePastDue>().Subject;
+        @event.DaysPastDue.Should().Be(11);
+    }
+
+    [Fact]
+    public void ApplyAging_InGrace_ToPastDue_UpdatesStateAndEmitsEvent()
+    {
+        // Issue 2: With threshold 5, aging from 3 to 5 days must transition
+        // InGrace → PastDue and emit LoanBecamePastDue.
+        var loan = CreateLoan();
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+
+        loan.ApplyAging(3, DisbursementDate.PlusDays(10), RecordedAt, CorrelationId,
+            pastDueThreshold: 5, defaultThreshold: 90);
+        loan.State.Should().Be(LoanState.InGrace);
+
+        loan.ClearUncommittedEvents();
+        loan.ApplyAging(5, DisbursementDate.PlusDays(12), RecordedAt, CorrelationId,
+            pastDueThreshold: 5, defaultThreshold: 90);
+
+        loan.State.Should().Be(LoanState.PastDue);
+        loan.DaysPastDue.Should().Be(5);
+        var @event = loan.UncommittedEvents.Should().ContainSingle().Which.Should().BeOfType<LoanBecamePastDue>().Subject;
+        @event.DaysPastDue.Should().Be(5);
+    }
+
+    [Fact]
+    public void RecordPayment_CurrencyMismatch_ReturnsFailure()
+    {
+        // Issue 3: A USD payment against a EUR loan must be rejected with a
+        // currency mismatch error, not silently succeed.
+        var loan = CreateLoan();
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+        loan.ClearUncommittedEvents();
+
+        var result = loan.RecordPayment(new Money(5_000m, "USD"), FirstPaymentDate, RecordedAt, CorrelationId);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("currency");
+        loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
+        loan.UncommittedEvents.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RecordPayment_AllocationNotAvailable_ReturnsExplicitFailure()
+    {
+        // Issue 4: RecordPayment must not claim successful processing while
+        // allocation is deferred. It returns an explicit failure.
+        var loan = CreateLoan();
+        loan.Activate(DisbursementDate.PlusDays(1), NoHolidays, RecordedAt, CorrelationId);
+        loan.ClearUncommittedEvents();
+
+        var result = loan.RecordPayment(new Money(5_000m, "EUR"), FirstPaymentDate, RecordedAt, CorrelationId);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("not yet available");
+        loan.RemainingBalance.Should().Be(new Money(100_000m, "EUR"));
         loan.UncommittedEvents.Should().BeEmpty();
     }
 
