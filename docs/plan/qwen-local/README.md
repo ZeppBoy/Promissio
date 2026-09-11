@@ -65,6 +65,8 @@ If quality is inadequate, first inspect template/tool parsing and missing contex
 
 ## 4. Delivery sequence
 
+**Sequencing update, 2026-09-10:** the owner marked Phase 2 partially implemented and deferred its remaining assurance work. The next active assignment is [D01 contract preparation](../../../Prompts/qwen-phase-3-contracts.md), rather than completing Q02–Q04 first. Those assurance tasks remain backlog and their thresholds remain unchanged. Q05–Q12 still require their accepted contracts. The sequence below describes dependencies and retained work, not permission to override this update.
+
 Baseline main commit: 8b3c314. Prior evidence: 405 tests passed, with empty Application, Integration and AI evaluation projects. Rerun against the actual checkout; a historic count is not a current result. Read [delivery status](../../status.md) and [verification](../../verification/README.md).
 
 | Order | Work | Can Qwen begin? | Completion gate |

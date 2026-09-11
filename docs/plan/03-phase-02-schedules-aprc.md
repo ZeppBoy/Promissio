@@ -4,6 +4,8 @@
 
 **Goal:** Implement all four schedule types and the APRC calculator.
 
+**Current status (owner decision, 2026-09-10): partially implemented.** Core functionality and stabilization exist; remaining assurance work is deferred while Phase 3 contract preparation proceeds. Mutation score is 72.70% against an 80% target; line coverage is unknown and financial review remains pending. Acceptance criteria are unchanged. See [delivery status](../status.md).
+
 ## Week 5 — Annuity and Differentiated Schedules
 
 **Tasks:**

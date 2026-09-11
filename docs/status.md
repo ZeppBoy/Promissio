@@ -8,8 +8,8 @@ Statuses are separate: **planned** means intended scope, **implemented** means c
 |---|---|---|
 | Phase 0 foundation | Projects, dependency management, CI and runnable host shells present | Build and baseline checks recorded; complete production foundation not claimed |
 | Phase 1 interest engine | Domain primitives, day counts and rate types present | Domain tests included; coverage and mutation targets pending |
-| Phase 2 schedules / APRC | Stabilization and approved contracts implemented | Reference, regression and snapshot tests included; financial review and assurance targets pending |
-| Phase 3 loan lifecycle | Planned | Proposed ownership ADRs await review |
+| Phase 2 schedules / APRC | **Partially implemented; remaining assurance work deferred by owner** | Core calculations and stabilization present; mutation score 72.70% (<80% target), line coverage unknown, financial review pending |
+| Phase 3 loan lifecycle | Contract preparation is the next active task; implementation planned | Proposed ownership ADRs await review |
 | Phase 4 APIs | Host and application scaffolding | No endpoint or real PostgreSQL workflow verification |
 | Phase 5 batch | Runnable generic host only | Registration and lifecycle smoke tests; no idempotency evidence |
 | Phases 6–8 MCP / AI / evaluations | Host scaffolding and plans | No tools, agents, golden datasets or evaluation thresholds exercised |
@@ -17,4 +17,8 @@ Statuses are separate: **planned** means intended scope, **implemented** means c
 
 Application, Integration and AI evaluation test projects are empty. Infrastructure has a registration smoke test; it does not establish database correctness.
 
-The next gate is Phase 2 financial review plus measured coverage/mutation evidence. Review [handoff](adr/0006-origination-servicing-handoff.md), [persistence/concurrency](adr/0007-persistence-and-concurrency.md) and [authorization](adr/0008-single-tenant-authorization.md) proposals before implementing their policies. See the [roadmap](plan/README.md) for acceptance criteria.
+Owner sequencing decision, 2026-09-10: proceed to Phase 3 preparation while Phase 2 remains partially implemented. This defers the remaining Phase 2 work; it does not waive its acceptance criteria or turn a failed mutation threshold into a pass. The mutation run completed, but its quality gate failed. Its aggregate results were checked against the saved JSON; its proposed survivor fixes contain contract errors and must not be used as implementation instructions without correction.
+
+Deferred Phase 2 work: correct survivor classification using actual mutant IDs, address uncovered and genuinely surviving behavior, measure line coverage, retain repeatable independent reference evidence and complete financial review. Preserve existing tests and thresholds. APRC disclosure extensions remain outside the approved calculator scope.
+
+The next task is [Phase 3 contract preparation](../Prompts/qwen-phase-3-contracts.md). Review [handoff](adr/0006-origination-servicing-handoff.md), [persistence/concurrency](adr/0007-persistence-and-concurrency.md) and [authorization](adr/0008-single-tenant-authorization.md) proposals before implementing their policies. See the [roadmap](plan/README.md) for acceptance criteria.
