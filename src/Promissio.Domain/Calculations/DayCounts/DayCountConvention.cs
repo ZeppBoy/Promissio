@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NodaTime;
 
 namespace Promissio.Domain.Calculations.DayCounts;
@@ -10,6 +11,12 @@ namespace Promissio.Domain.Calculations.DayCounts;
 /// for interest computation. Different conventions are used across markets and products.
 /// See /docs/domain/day-count-conventions.md for mathematical formulas.
 /// </remarks>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$dayCountType")]
+[JsonDerivedType(typeof(Actual360), "actual-360")]
+[JsonDerivedType(typeof(Actual365), "actual-365")]
+[JsonDerivedType(typeof(ActualActual), "actual-actual")]
+[JsonDerivedType(typeof(Thirty360), "30-360")]
+[JsonDerivedType(typeof(Thirty360European), "30e-360")]
 public abstract class DayCountConvention : IEquatable<DayCountConvention>
 {
     public abstract string Name { get; }

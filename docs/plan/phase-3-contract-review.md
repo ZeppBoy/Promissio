@@ -1,6 +1,6 @@
 # Phase 3 contract review — Loan aggregate and state machine
 
-> Status: DRAFT for owner review.
+> Status: Historical preparation packet. T1 was merged on 2026-09-11; ADR-0006 and the T2 subset of ADR-0007 were accepted on 2026-09-16. See `docs/status.md` for current implementation state.
 > Prepared: 2026-09-10.
 > Baseline: branch `main`, commit `ef634bc`, working tree dirty (see dirty paths below).
 > Scope: documentation-only review packet that makes Phase 3 domain decisions concrete and reviewable. No source, tests, snapshots, configuration, ADR-status, dependencies or Phase 2 assurance edits.

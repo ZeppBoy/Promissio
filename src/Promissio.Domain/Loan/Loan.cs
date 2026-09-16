@@ -22,6 +22,31 @@ public sealed class Loan
 {
     private readonly List<LoanEvent> _uncommittedEvents = [];
 
+    private Loan(LoanCreated created)
+    {
+        ArgumentNullException.ThrowIfNull(created, nameof(created));
+        ValidateCreation(
+            created.LoanId,
+            created.TermsVersion,
+            created.Principal,
+            created.Rate,
+            created.Term,
+            created.DisbursementDate,
+            created.FirstPaymentDate);
+
+        Id = created.LoanId;
+        LoanApplicationId = created.LoanApplicationId;
+        TermsVersion = created.TermsVersion;
+        Principal = created.Principal;
+        RemainingBalance = created.Principal;
+        Rate = created.Rate;
+        Term = created.Term;
+        DisbursementDate = created.DisbursementDate;
+        FirstPaymentDate = created.FirstPaymentDate;
+        CreationDate = created.EffectiveDate;
+        State = LoanState.Disbursed;
+    }
+
     /// <summary>The identity of this loan.</summary>
     public LoanId Id { get; }
 
@@ -83,20 +108,14 @@ public sealed class Loan
         Instant recordedAt,
         Guid correlationId)
     {
-        ArgumentNullException.ThrowIfNull(id, nameof(id));
-        ArgumentNullException.ThrowIfNull(principal, nameof(principal));
-        ArgumentNullException.ThrowIfNull(rate, nameof(rate));
-        ArgumentNullException.ThrowIfNull(term, nameof(term));
-
-        if (principal.Amount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(principal), "Principal must be positive.");
-
-        if (termsVersion <= 0)
-            throw new ArgumentOutOfRangeException(nameof(termsVersion), "Terms version must be positive.");
-
-        if (firstPaymentDate < disbursementDate)
-            throw new ArgumentOutOfRangeException(nameof(firstPaymentDate),
-                "First payment date must be on or after the disbursement date.");
+        ValidateCreation(
+            id,
+            termsVersion,
+            principal,
+            rate,
+            term,
+            disbursementDate,
+            firstPaymentDate);
 
         Id = id;
         Principal = principal;
@@ -129,6 +148,31 @@ public sealed class Loan
 
     /// <summary>The approved and accepted terms version (immutable per E-2).</summary>
     public int TermsVersion { get; }
+
+    /// <summary>
+    /// Reconstructs a loan from its persisted event stream without emitting new events.
+    /// </summary>
+    /// <param name="events">Events in ascending stream-version order.</param>
+    /// <returns>The reconstructed aggregate.</returns>
+    /// <exception cref="ArgumentException">Thrown when the stream is empty or does not begin with <see cref="LoanCreated"/>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when an event belongs to another loan or has an unsupported type.</exception>
+    public static Loan Rehydrate(IEnumerable<LoanEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(events, nameof(events));
+
+        using IEnumerator<LoanEvent> enumerator = events.GetEnumerator();
+        if (!enumerator.MoveNext())
+            throw new ArgumentException("A loan event stream cannot be empty.", nameof(events));
+
+        if (enumerator.Current is not LoanCreated created)
+            throw new ArgumentException("A loan event stream must begin with LoanCreated.", nameof(events));
+
+        Loan loan = new(created);
+        while (enumerator.MoveNext())
+            loan.Apply(enumerator.Current);
+
+        return loan;
+    }
 
     /// <summary>
     /// Transitions the loan from Disbursed to Active on the first business day after disbursement.
@@ -382,6 +426,78 @@ public sealed class Loan
     /// Clears the uncommitted events list after they have been persisted.
     /// </summary>
     public void ClearUncommittedEvents() => _uncommittedEvents.Clear();
+
+    private void Apply(LoanEvent @event)
+    {
+        if (@event.LoanId != Id)
+            throw new InvalidOperationException(
+                $"Event loan ID {@event.LoanId} does not match aggregate ID {Id}.");
+
+        switch (@event)
+        {
+            case LoanActivated:
+            case LoanBecameActive:
+                State = LoanState.Active;
+                DaysPastDue = null;
+                break;
+            case LoanEnteredGracePeriod enteredGrace:
+                State = LoanState.InGrace;
+                DaysPastDue = enteredGrace.DaysPastDue;
+                break;
+            case LoanBecamePastDue becamePastDue:
+                State = LoanState.PastDue;
+                DaysPastDue = becamePastDue.DaysPastDue;
+                break;
+            case LoanDefaulted defaulted:
+                State = LoanState.Defaulted;
+                DaysPastDue = defaulted.DaysPastDue;
+                break;
+            case PaymentReceived paymentReceived:
+                RemainingBalance = paymentReceived.RemainingBalance;
+                break;
+            case LoanWrittenOff:
+                State = LoanState.WrittenOff;
+                break;
+            case LoanRestructured:
+                State = LoanState.Restructured;
+                break;
+            case LoanRecovered:
+                State = LoanState.Recovered;
+                break;
+            case LoanCreated:
+                throw new InvalidOperationException("LoanCreated may only appear as the first event in a loan stream.");
+            default:
+                throw new InvalidOperationException($"Unsupported loan event type '{@event.GetType().FullName}'.");
+        }
+    }
+
+    private static void ValidateCreation(
+        LoanId id,
+        int termsVersion,
+        Money principal,
+        InterestRate rate,
+        LoanTerm term,
+        LocalDate disbursementDate,
+        LocalDate firstPaymentDate)
+    {
+        ArgumentNullException.ThrowIfNull(id, nameof(id));
+        ArgumentNullException.ThrowIfNull(principal, nameof(principal));
+        ArgumentNullException.ThrowIfNull(rate, nameof(rate));
+        ArgumentNullException.ThrowIfNull(term, nameof(term));
+
+        if (principal.Amount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(principal), "Principal must be positive.");
+
+        if (termsVersion <= 0)
+            throw new ArgumentOutOfRangeException(nameof(termsVersion), "Terms version must be positive.");
+
+        if (firstPaymentDate < disbursementDate)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(firstPaymentDate),
+                "First payment date must be on or after the disbursement date.");
+        }
+    }
 
     public override string ToString() =>
         $"Loan({Id}, State={State}, Principal={Principal}, Balance={RemainingBalance}, " +

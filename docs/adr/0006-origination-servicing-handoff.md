@@ -1,23 +1,20 @@
 # ADR-0006: Origination-to-servicing handoff
 
-**Status:** Proposed. Domain owner review required before Phase 3 implementation.
+**Status:** Accepted 2026-09-16.
 
 ## Context
 
 The target model contains LoanApplication and Loan, while the phase plan previously placed approval on Loan without explaining how application approval relates to it.
 
-## Proposed decision
+## Decision
 
 LoanApplication owns the underwriting decision. Application-layer orchestration creates or activates the servicing Loan from approved, immutable terms. Repeated delivery of the handoff must not create another loan. Domain aggregates remain independent of persistence and each other.
 
-## Questions to resolve
+The servicing `Loan` is created only at confirmed disbursement, using the exact approved and borrower-accepted terms version. Approved terms are immutable per version. Changes before disbursement create a new terms version and require fresh approval and borrower acceptance.
 
-- At what business milestone does a servicing Loan begin to exist: approval, contract acceptance or disbursement?
-- Is approval itself an event on LoanApplication, and what terms must the handoff carry?
-- What identifier and uniqueness rule make the handoff idempotent?
-- What happens when approved terms change before disbursement?
+`LoanId` is a strongly typed `Guid`. `LoanApplicationId` is the handoff idempotency key and permits exactly one servicing loan per application. An identical retry returns the existing `LoanId`; a retry with a different terms version or disbursement payload returns a conflict. The idempotency outcome and initial loan stream are committed atomically.
 
-Do not choose state names, transitions, identifiers or event schemas from this proposal. The accepted decision must be accompanied by domain diagrams and test scenarios.
+The existing Application-layer `LoanApplication` record remains a transient DTO. A future Domain `LoanApplication` aggregate owns underwriting; that aggregate is not introduced by this decision.
 
 ## Consequences
 

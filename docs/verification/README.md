@@ -1,6 +1,6 @@
 # Verification
 
-Run from the repository root with PowerShell 7 and a .NET 9 SDK supporting Promissio.slnx:
+Run from the repository root with PowerShell 7, a .NET 9 SDK supporting Promissio.slnx, and a working Docker endpoint. Docker is required by the Phase 3 PostgreSQL Testcontainers suite:
 
 ```powershell
 pwsh ./tools/verify.ps1
@@ -14,7 +14,7 @@ Use `-NoRestore` only after a successful restore for the same checkout. Local de
 4. Local Markdown file links in maintained documentation and forwarding pages. Historical bodies, external URLs and anchors are excluded.
 5. Benchmark case discovery, without running performance measurements.
 
-These are baseline checks. Empty test projects do not establish coverage. Real database integration, endpoint failure modes, batch idempotency, AI evaluations, coverage targets and mutation scores are not yet enforced by this script.
+These are baseline checks. Empty test projects do not establish coverage. Phase 3 now includes real PostgreSQL integration scenarios; endpoint failure modes, batch idempotency, AI evaluations, coverage targets and mutation scores are not yet enforced by this script.
 
 ## Optional mutation verification
 
@@ -36,6 +36,7 @@ Performance runs are described in the [benchmark guide](../../benchmarks/README.
 
 ## Evidence
 
+- [2026-09-16 Phase 3 T2 creation and replay](2026-09-16-phase-3-t2.md)
 - [2026-09-10 structure alignment](2026-09-10-structure-alignment.md)
 - [Historical audits](../audits/README.md)
 

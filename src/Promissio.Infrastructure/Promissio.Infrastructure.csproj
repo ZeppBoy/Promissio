@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="Marten" />
+    <PackageReference Include="Marten.NodaTime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Promissio.Application\Promissio.Application.csproj" />
   </ItemGroup>
 
 </Project>

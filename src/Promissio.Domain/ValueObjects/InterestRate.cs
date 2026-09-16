@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.Json.Serialization;
 using NodaTime;
 using Promissio.Domain.Calculations.DayCounts;
 
@@ -7,6 +8,11 @@ namespace Promissio.Domain.ValueObjects;
 /// <summary>
 /// Abstract base for interest rate representations.
 /// </summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$rateType")]
+[JsonDerivedType(typeof(FixedRate), "fixed")]
+[JsonDerivedType(typeof(FloatingRate), "floating")]
+[JsonDerivedType(typeof(TieredRate), "tiered")]
+[JsonDerivedType(typeof(EffectiveRate), "effective")]
 public abstract record InterestRate
 {
     public abstract Percentage Rate { get; }
