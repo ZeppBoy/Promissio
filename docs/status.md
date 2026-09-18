@@ -8,7 +8,7 @@ Statuses are separate: **planned** means intended scope, **implemented** means c
 |---|---|---|
 | Phase 0 foundation | Projects, dependency management, CI and runnable host shells present | Full solution build restored with zero warnings and errors |
 | Phase 1 interest engine | Domain primitives, day counts and rate types present | Included in the passing whole-Domain coverage and mutation gates |
-| Phase 2 schedules / APRC | **Implemented; automated assurance complete** | 528 Domain tests pass; whole-Domain line coverage 96.48% and mutation score 85.58%; Phase 2 line coverage 98.51%; human financial review pending |
+| Phase 2 schedules / APRC | **Complete** | 528 Domain tests pass; whole-Domain line coverage 96.48% and mutation score 85.58%; Phase 2 line coverage 98.51%; owner financial-contract sign-off recorded 2026-09-18 |
 | Phase 3 loan lifecycle | Aggregate/state machine plus T2 creation, replay and Marten persistence are committed on `main` | Build restored; PostgreSQL Testcontainers execution still requires Docker |
 | Phase 4 APIs | Host and application scaffolding | No endpoint or real PostgreSQL workflow verification |
 | Phase 5 batch | Runnable generic host only | Registration and lifecycle smoke tests; no idempotency evidence |
@@ -19,6 +19,6 @@ The Application test project covers the creation handler. Integration contains r
 
 Owner sequencing decision, 2026-09-10: Phase 3 preparation proceeded while Phase 2 assurance was deferred. That deferred Phase 2 implementation work is now complete without changing ADR-0004. The unfiltered Domain suite now clears both repository gates: 96.48% line coverage and 85.58% mutation score.
 
-Remaining Phase 2 work is human financial review. APRC disclosure extensions remain outside the approved calculator scope. Existing tests and thresholds remain in force.
+Phase 2 has no remaining implementation or acceptance work. The owner's sign-off is product acceptance, not legal or regulatory certification. APRC disclosure extensions remain outside the approved calculator scope. Existing tests and thresholds remain in force.
 
 The next implementation gate is executing the Phase 3 PostgreSQL Testcontainers suite on a Docker-capable host, then continuing with persisted lifecycle transitions and projections. [Authorization](adr/0008-single-tenant-authorization.md) still requires explicit security review before exposing operations. See the [roadmap](plan/README.md) for acceptance criteria.

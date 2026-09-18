@@ -4,7 +4,7 @@
 
 **Goal:** Implement all four schedule types and the APRC calculator.
 
-**Current status (2026-09-18): implemented with automated assurance complete.** All four strategies and the dated APRC solver satisfy the accepted ADR-0004 contracts. Phase 2 source line coverage is 98.51%; the unfiltered Domain project passes its required gates at 96.48% line coverage and 85.58% mutation score. Human financial review remains separate and pending. See [delivery status](../status.md) and [verification evidence](../verification/2026-09-18-phase-2-completion.md).
+**Current status (2026-09-18): complete.** All four strategies and the dated APRC solver satisfy the accepted ADR-0004 contracts. Phase 2 source line coverage is 98.51%; the unfiltered Domain project passes its required gates at 96.48% line coverage and 85.58% mutation score. The owner reviewed and signed off the financial contracts, worked examples, rounding and date policies, reference interpretation, and scope exclusions on 2026-09-18. This is product acceptance, not legal or regulatory certification. See [delivery status](../status.md) and [verification evidence](../verification/2026-09-18-phase-2-completion.md).
 
 ## Week 5 — Annuity and Differentiated Schedules
 

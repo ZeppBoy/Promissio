@@ -1,6 +1,6 @@
 # ADR-0004: Phase 2 schedule and APRC contracts
 
-**Status:** Accepted — financial contracts approved by the owner on 2026-09-08.
+**Status:** Accepted — financial contracts approved by the owner on 2026-09-08; implementation, worked examples, rounding and date policies, reference interpretation, and scope exclusions reviewed and signed off by the owner on 2026-09-18. This approval is product acceptance, not legal or regulatory certification.
 
 ## Context
 
@@ -34,4 +34,4 @@ No tests are removed. Unsupported reference expectations are replaced by cited C
 - [Calculation rules and verification](../domain/payment-schedules.md)
 - [Commission time-interval guidance](https://www.mfcr.cz/assets/attachments/EU-MFCR_Metodika_2012_128-Guidelines-consumer-credit-directive-swd-en.pdf)
 
-Documentation requires a human edit before merging, per AGENTS.md.
+The owner completed the required human review and edit on 2026-09-18. This does not constitute legal or regulatory certification.

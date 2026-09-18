@@ -20,6 +20,7 @@ Remote merge `075840d` had replaced the stabilized bullet and custom strategies 
 | Other executable non-Docker tests | 2 Application, 3 Infrastructure and 2 Batch Processor tests passed; 535 total with Domain |
 | Full solution build | Passed with zero warnings and errors after the complete change set |
 | Formatting and documentation links | Passed |
+| Human financial-contract review | Owner sign-off recorded 2026-09-18; product acceptance only, not legal or regulatory certification |
 
 Line coverage was collected with the SDK `Code Coverage` data collector and converted to Cobertura with pinned `dotnet-coverage` 18.11.0. The calculation unions executable line numbers by source file so compiler-generated nested classes do not double-count lines.
 
@@ -29,6 +30,10 @@ The repeatable `pwsh ./tools/verify-phase2.ps1 -NoRestore` run completed success
 
 The initial direct `dotnet-coverage collect` attempt produced instrumentation-only `TypeLoadException` failures in Phase 3 Loan types and is excluded. Rebuilding restored clean binaries; the built-in collector then ran all 528 tests successfully before report conversion.
 
+## Human sign-off
+
+On 2026-09-18, the owner confirmed review and approval of the Phase 2 schedule-generation and APRC contracts, worked examples, rounding and date-handling policies, published-reference interpretation, and documented scope exclusions. This closes the Phase 2 human-review gate.
+
 ## Limits
 
-Automated Phase 2 implementation gates, including the whole-Domain quality thresholds required by the project manual, are satisfied. Human review of the financial contracts, published reference interpretation and regulatory scope remains separate. The calculator still intentionally excludes legal-disclosure rounding, multiple drawdowns, open-ended-product assumptions and unknown future charges, as recorded in ADR-0004.
+Automated Phase 2 implementation gates, including the whole-Domain quality thresholds required by the project manual, are satisfied, and owner product acceptance is recorded. The sign-off is not legal or regulatory certification. The calculator still intentionally excludes legal-disclosure rounding, multiple drawdowns, open-ended-product assumptions and unknown future charges, as recorded in ADR-0004.
