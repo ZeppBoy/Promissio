@@ -22,4 +22,12 @@ public interface ILoanRepository
     /// <param name="cancellationToken">Token used to cancel the database operation.</param>
     /// <returns>The reconstructed loan and stream version, or <c>null</c> when no stream exists.</returns>
     Task<PersistedLoan?> LoadAsync(LoanId loanId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Appends an aggregate's uncommitted events when the authoritative stream is still at the loaded version.
+    /// </summary>
+    /// <param name="persistedLoan">The reconstructed aggregate and its expected stream version.</param>
+    /// <param name="cancellationToken">Token used to cancel the database operation.</param>
+    /// <returns>A typed saved or concurrency-conflict outcome.</returns>
+    Task<LoanSaveStatus> SaveAsync(PersistedLoan persistedLoan, CancellationToken cancellationToken);
 }

@@ -86,5 +86,10 @@ public sealed class CreateLoanCommandHandlerTests
             LoanId loanId,
             CancellationToken cancellationToken) =>
             Task.FromResult<PersistedLoan?>(null);
+
+        public Task<LoanSaveStatus> SaveAsync(
+            PersistedLoan persistedLoan,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(LoanSaveStatus.Saved);
     }
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
@@ -29,7 +30,7 @@ public sealed class InfrastructureTests
     }
 
     [Fact]
-    public void ConfigureMarten_RoundTripsLoanCreatedWithNodaTimeAndPolymorphicRate()
+    public void ConfigureMarten_RoundTripsLoanCreatedWhenJsonbReordersPolymorphicMetadata()
     {
         ServiceCollection services = new();
         InfrastructureService.ConfigureMarten(
@@ -53,7 +54,11 @@ public sealed class InfrastructureTests
 
         ISerializer serializer = store.Options.Serializer();
         string json = serializer.ToJson(original);
-        using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));
+        JsonNode root = JsonNode.Parse(json)
+            ?? throw new InvalidOperationException("Marten returned empty event JSON.");
+        MoveMetadataPropertiesToEnd(root);
+        string reorderedJson = root.ToJsonString();
+        using MemoryStream stream = new(Encoding.UTF8.GetBytes(reorderedJson));
         LoanCreated roundTripped = serializer.FromJson<LoanCreated>(stream);
 
         Assert.Equal(original.LoanId, roundTripped.LoanId);
@@ -62,6 +67,39 @@ public sealed class InfrastructureTests
         Assert.Equal(original.Principal, roundTripped.Principal);
         Assert.Equal(original.Rate, roundTripped.Rate);
         Assert.Equal(original.Term, roundTripped.Term);
+    }
+
+    private static void MoveMetadataPropertiesToEnd(JsonNode node)
+    {
+        if (node is JsonArray array)
+        {
+            foreach (JsonNode? child in array)
+            {
+                if (child is not null)
+                    MoveMetadataPropertiesToEnd(child);
+            }
+
+            return;
+        }
+
+        if (node is not JsonObject jsonObject)
+            return;
+
+        foreach (JsonNode? child in jsonObject.Select(property => property.Value).ToArray())
+        {
+            if (child is not null)
+                MoveMetadataPropertiesToEnd(child);
+        }
+
+        foreach (string metadataName in jsonObject
+                     .Select(property => property.Key)
+                     .Where(name => name.StartsWith('$'))
+                     .ToArray())
+        {
+            JsonNode? value = jsonObject[metadataName];
+            jsonObject.Remove(metadataName);
+            jsonObject.Add(metadataName, value);
+        }
     }
 
     [Fact]
@@ -88,6 +126,34 @@ public sealed class InfrastructureTests
         loan.ClearUncommittedEvents();
 
         Task Action() => repository.CreateAsync(loan, CancellationToken.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(Action);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithoutUncommittedEvents_RejectsBeforeDatabaseAccess()
+    {
+        ServiceCollection services = new();
+        InfrastructureService.ConfigureMarten(
+            services,
+            "Host=localhost;Database=promissio;Username=promissio;Password=promissio");
+
+        using ServiceProvider provider = services.BuildServiceProvider();
+        ILoanRepository repository = provider.GetRequiredService<ILoanRepository>();
+        Promissio.Domain.Loan.Loan loan = new(
+            LoanId.New(),
+            Guid.NewGuid(),
+            1,
+            new Money(10_000m, "EUR"),
+            new FixedRate(Percentage.FromPercent(5m), DayCountConventions.Actual365),
+            LoanTerm.FromMonths(24),
+            new LocalDate(2026, 9, 10),
+            new LocalDate(2026, 10, 10),
+            Instant.FromUtc(2026, 9, 10, 12, 0),
+            Guid.NewGuid());
+        loan.ClearUncommittedEvents();
+
+        Task Action() => repository.SaveAsync(new PersistedLoan(loan, 1), CancellationToken.None);
 
         await Assert.ThrowsAsync<ArgumentException>(Action);
     }

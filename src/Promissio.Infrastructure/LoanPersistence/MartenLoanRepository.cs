@@ -100,6 +100,38 @@ public sealed class MartenLoanRepository : ILoanRepository
         return new PersistedLoan(loan, storedEvents[^1].Version);
     }
 
+    /// <inheritdoc />
+    public async Task<LoanSaveStatus> SaveAsync(
+        PersistedLoan persistedLoan,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(persistedLoan, nameof(persistedLoan));
+        if (persistedLoan.Loan.UncommittedEvents.Count == 0)
+        {
+            throw new ArgumentException(
+                "An existing loan stream update must contain at least one uncommitted event.",
+                nameof(persistedLoan));
+        }
+
+        object[] events = persistedLoan.Loan.UncommittedEvents.Cast<object>().ToArray();
+        await using IDocumentSession session = _store.LightweightSession();
+        // Marten's versioned Append overload accepts the expected maximum version
+        // after this batch, not the currently loaded version.
+        long expectedVersionAfterAppend = persistedLoan.StreamVersion + events.Length;
+        session.Events.Append(persistedLoan.Loan.Id.Value, expectedVersionAfterAppend, events);
+
+        try
+        {
+            await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            persistedLoan.Loan.ClearUncommittedEvents();
+            return LoanSaveStatus.Saved;
+        }
+        catch (ConcurrencyException)
+        {
+            return LoanSaveStatus.ConcurrencyConflict;
+        }
+    }
+
     private async Task<LoanCreationResult?> ResolveExistingAsync(
         LoanRoot requestedLoan,
         CancellationToken cancellationToken)

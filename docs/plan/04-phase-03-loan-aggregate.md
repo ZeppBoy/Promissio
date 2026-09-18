@@ -4,7 +4,7 @@
 
 **Goal:** Model the loan lifecycle with rigorous state transitions and event sourcing.
 
-**Next active task:** execute the T2 PostgreSQL integration tests on a Docker-capable host, then add persisted lifecycle transitions one approved command at a time. Phase 2 is complete, including its whole-Domain quality gates and owner financial-contract sign-off.
+**Current status (2026-09-18):** PostgreSQL-backed creation/replay and idempotency pass six Testcontainers scenarios, including persisted activation and stale-writer rejection. `Disbursed` to `Active` is the first completed Application/Marten lifecycle workflow. The next bounded candidate is persisted `ApplyAging`, subject to explicit owner approval. Phase 2 is complete, including its whole-Domain quality gates and owner financial-contract sign-off.
 
 ## Week 7 — Loan Aggregate
 

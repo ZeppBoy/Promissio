@@ -2,6 +2,7 @@ using FluentAssertions;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
+using Promissio.Application.LoanActivation;
 using Promissio.Application.LoanCreation;
 using Promissio.Domain.Calculations.DayCounts;
 using Promissio.Domain.Loan;
@@ -124,6 +125,58 @@ public sealed class LoanPersistenceTests(PostgreSqlLoanFixture fixture)
         results.Should().ContainSingle(result => result.Status == LoanCreationStatus.Existing);
         results.Select(result => result.LoanId).Distinct().Should().ContainSingle();
     }
+
+    [Fact]
+    public async Task ActivateWorkflow_AppendsAndReplaysAtExpectedVersion()
+    {
+        LoanRoot loan = CreateLoan(Guid.NewGuid());
+        LoanCreationResult created = await Repository.CreateAsync(loan, CancellationToken.None);
+        ActivateLoanCommandHandler handler = new(Repository);
+        ActivateLoanResult activation = await handler.Handle(new ActivateLoanCommand(
+            created.LoanId,
+            loan.DisbursementDate.PlusDays(1),
+            new HolidayCalendar([]),
+            Instant.FromUtc(2026, 9, 11, 9, 0),
+            Guid.NewGuid()), CancellationToken.None);
+        PersistedLoan reloaded = await LoadRequired(created.LoanId);
+
+        activation.Should().Be(new ActivateLoanResult(created.LoanId, ActivateLoanStatus.Activated));
+        reloaded.StreamVersion.Should().Be(2);
+        reloaded.Loan.State.Should().Be(LoanState.Active);
+    }
+
+    [Fact]
+    public async Task Activate_WithStaleVersion_ReturnsConflictWithoutThirdEvent()
+    {
+        LoanRoot loan = CreateLoan(Guid.NewGuid());
+        LoanCreationResult created = await Repository.CreateAsync(loan, CancellationToken.None);
+        PersistedLoan firstWriter = await LoadRequired(created.LoanId);
+        PersistedLoan staleWriter = await LoadRequired(created.LoanId);
+        LocalDate activationDate = firstWriter.Loan.DisbursementDate.PlusDays(1);
+        firstWriter.Loan.Activate(
+            activationDate,
+            new HolidayCalendar([]),
+            Instant.FromUtc(2026, 9, 11, 9, 0),
+            Guid.NewGuid());
+        staleWriter.Loan.Activate(
+            activationDate,
+            new HolidayCalendar([]),
+            Instant.FromUtc(2026, 9, 11, 9, 1),
+            Guid.NewGuid());
+
+        LoanSaveStatus first = await Repository.SaveAsync(firstWriter, CancellationToken.None);
+        LoanSaveStatus stale = await Repository.SaveAsync(staleWriter, CancellationToken.None);
+        PersistedLoan reloaded = await LoadRequired(created.LoanId);
+
+        first.Should().Be(LoanSaveStatus.Saved);
+        stale.Should().Be(LoanSaveStatus.ConcurrencyConflict);
+        reloaded.StreamVersion.Should().Be(2);
+        reloaded.Loan.State.Should().Be(LoanState.Active);
+    }
+
+    private async Task<PersistedLoan> LoadRequired(LoanId loanId) =>
+        await Repository.LoadAsync(loanId, CancellationToken.None)
+        ?? throw new InvalidOperationException($"Loan {loanId} was not found.");
 
     private static LoanRoot CreateLoan(
         Guid applicationId,

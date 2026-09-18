@@ -29,6 +29,8 @@ public static class InfrastructureService
             options.Events.DatabaseSchemaName = "promissio";
             options.Events.AppendMode = EventAppendMode.Rich;
             options.Events.UseMandatoryStreamTypeDeclaration = true;
+            options.UseSystemTextJsonForSerialization(configure: settings =>
+                settings.AllowOutOfOrderMetadataProperties = true);
             options.UseNodaTime();
         });
 

@@ -4,7 +4,7 @@ An open-source loan servicing platform for .NET, with planned AI support for cre
 
 ## Current status
 
-The domain library implements interest calculations, day-count conventions, payment schedules, dated APRC and the loan lifecycle aggregate. The first Phase 3 Application/Marten slice implements idempotent loan creation and event replay; PostgreSQL Testcontainers execution still requires a Docker-capable host. Phase 2 is complete: implementation and automated gates pass, and the owner signed off the financial contracts on 2026-09-18. This product acceptance is not legal or regulatory certification. HTTP operations, daily batch jobs, MCP tools and AI agents remain scaffolding or planned work.
+The domain library implements interest calculations, day-count conventions, payment schedules, dated APRC and the loan lifecycle aggregate. Phase 3 now has database-verified idempotent loan creation/replay plus the first persisted lifecycle workflow (`Disbursed` to `Active`) with optimistic concurrency. Phase 2 is complete: implementation and automated gates pass, and the owner signed off the financial contracts on 2026-09-18. This product acceptance is not legal or regulatory certification. HTTP operations, daily batch jobs, MCP tools and AI agents remain scaffolding or planned work.
 
 See [delivery status](docs/status.md), [current architecture](docs/architecture/current-state.md) and the [development roadmap](docs/plan/README.md). Implemented scope and future scope are recorded separately.
 

@@ -46,6 +46,7 @@ Performance runs are described in the [benchmark guide](../../benchmarks/README.
 
 ## Evidence
 
+- [2026-09-18 Phase 3 PostgreSQL and activation](2026-09-18-phase-3-activation.md)
 - [2026-09-18 Phase 2 completion](2026-09-18-phase-2-completion.md)
 - [2026-09-18 current implementation status](2026-09-18-current-status.md)
 - [2026-09-16 Phase 3 T2 creation and replay](2026-09-16-phase-3-t2.md)
