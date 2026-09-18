@@ -22,3 +22,7 @@ Thumbs.db
 ## Temp / debug
 *.log
 *.tmp
+*.received.*
+TestResults/
+**/BenchmarkDotNet.Artifacts/
+**/StrykerOutput/

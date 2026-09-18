@@ -151,9 +151,10 @@ public class ScheduleGenerationTests
     [Fact]
     public void AprcCalculator_Annuity_MatchesReference()
     {
-        // Arrange
+        // Regular 30E/360 periods have exactly the nominal monthly rate;
+        // this is a self-consistency regression, not an official EU example.
         var principal = new Money(10000, "USD");
-        var rate = new FixedRate(new Percentage(0.10m), DayCountConventions.ActualActual);
+        var rate = new FixedRate(new Percentage(0.10m), DayCountConventions.Thirty360European);
         var term = 12;
 
         var generator = new AnnuityScheduleGenerator(_interestCalculator);
@@ -175,9 +176,10 @@ public class ScheduleGenerationTests
     [Fact]
     public void AprcCalculator_Annuity_MatchesReference_HighPrecision()
     {
-        // Arrange
+        // Regular 30E/360 periods have exactly the nominal monthly rate;
+        // this is a self-consistency regression, not an official EU example.
         var principal = new Money(10000, "USD");
-        var rate = new FixedRate(new Percentage(0.10m), DayCountConventions.ActualActual);
+        var rate = new FixedRate(new Percentage(0.10m), DayCountConventions.Thirty360European);
         var term = 12;
 
         var generator = new AnnuityScheduleGenerator(_interestCalculator);
@@ -192,7 +194,7 @@ public class ScheduleGenerationTests
         // For an annuity loan at 10% nominal with monthly compounding, 
         // the APRC (effective annual rate) is approximately 10.47%.
         // The exact value depends on the bisection method precision.
-        // Tolerance of 0.00001m (0.001%) is sufficient for regulatory compliance.
+        // Tolerance covers cent rounding of the generated repayments.
         aprc.Fraction.Should().BeApproximately(0.104715723888028m, 0.00001m);
     }
 

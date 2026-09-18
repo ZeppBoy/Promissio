@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NodaTime;
 
 namespace Promissio.Domain.ValueObjects;
@@ -27,8 +28,17 @@ public sealed record LoanTerm
     /// </summary>
     public int Months => TotalMonths % 12;
 
-    private LoanTerm(int totalMonths)
+    /// <summary>
+    /// Creates a loan term from a positive total month count.
+    /// </summary>
+    /// <param name="totalMonths">Total number of calendar months in the term.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="totalMonths"/> is not positive.</exception>
+    [JsonConstructor]
+    public LoanTerm(int totalMonths)
     {
+        if (totalMonths <= 0)
+            throw new ArgumentOutOfRangeException(nameof(totalMonths), "Loan term must be positive.");
+
         TotalMonths = totalMonths;
     }
 

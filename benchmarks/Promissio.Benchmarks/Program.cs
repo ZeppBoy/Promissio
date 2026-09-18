@@ -14,12 +14,12 @@ namespace Promissio.Benchmarks;
 [SimpleJob]
 public class InterestCalculatorBenchmarks
 {
-    private IInterestCalculator _calculator = null!;
-    private Money _principal = null!;
-    private FixedRate _rate = null!;
-    private DayCountConvention _convention = null!;
-    private LocalDate _startDate = default!;
-    private LocalDate _endDate = default!;
+    private IInterestCalculator _calculator = new InterestCalculator();
+    private Money _principal = new(100000m, "USD");
+    private FixedRate _rate = new(Percentage.FromPercent(5.5m), new Actual360());
+    private DayCountConvention _convention = new Actual360();
+    private LocalDate _startDate;
+    private LocalDate _endDate;
 
     [GlobalSetup]
     public void Setup()
@@ -80,8 +80,8 @@ public class InterestCalculatorBenchmarks
 [SimpleJob]
 public class MoneyBenchmarks
 {
-    private Money _a = null!;
-    private Money _b = null!;
+    private Money _a = new(10000m, "USD");
+    private Money _b = new(5000m, "USD");
 
     [GlobalSetup]
     public void Setup()
@@ -114,11 +114,6 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        var config = new ManualConfig()
-            .WithArtifactsPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "results"))
-            .AddLogger(ConsoleLogger.Default);
-
-        BenchmarkRunner.Run<InterestCalculatorBenchmarks>(config);
-        BenchmarkRunner.Run<MoneyBenchmarks>(config);
+        BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
     }
 }

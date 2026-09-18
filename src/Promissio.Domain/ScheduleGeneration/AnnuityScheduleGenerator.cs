@@ -1,150 +1,93 @@
-using System;
-using System.Collections.Generic;
 using NodaTime;
 using Promissio.Domain.Calculations;
 using Promissio.Domain.ValueObjects;
 
 namespace Promissio.Domain.ScheduleGeneration;
 
-/// <summary>
-/// Generates annuity payment schedules (equal total payments, varying principal/interest split).
-/// </summary>
-public class AnnuityScheduleGenerator : IScheduleGenerator
+/// <summary>Generates level payments using the same dated accrual as the contractual interest calculator.</summary>
+/// <remarks>
+/// Finds the smallest cent-denominated payment that covers interest and retires the balance by maturity.
+/// Interest-only grace instalments precede amortization; the last payment absorbs the residual.
+/// See ADR-0004 and docs/domain/payment-schedules.md for the balance recurrence.
+/// </remarks>
+public sealed class AnnuityScheduleGenerator : IScheduleGenerator
 {
     private readonly IInterestCalculator _interestCalculator;
 
+    /// <summary>Creates a generator using the contractual interest calculator.</summary>
     public AnnuityScheduleGenerator(IInterestCalculator interestCalculator)
     {
+        ArgumentNullException.ThrowIfNull(interestCalculator);
         _interestCalculator = interestCalculator;
     }
 
-    public IEnumerable<PaymentScheduleItem> Generate(
-        Money principal,
-        InterestRate interestRate,
-        int termMonths,
-        LocalDate startDate,
-        int gracePeriodMonths = 0,
-        HolidayCalendar? holidayCalendar = null)
+    /// <inheritdoc />
+    public IEnumerable<PaymentScheduleItem> Generate(Money principal, InterestRate interestRate,
+        int termMonths, LocalDate startDate, int gracePeriodMonths = 0,
+        HolidayCalendar? holidayCalendar = null, LocalDate? firstPaymentDate = null)
     {
-        if (gracePeriodMonths < 0)
-            throw new ArgumentException("Grace period cannot be negative.", nameof(gracePeriodMonths));
-
-        if (gracePeriodMonths >= termMonths)
-            throw new ArgumentException("Grace period must be less than total term.", nameof(gracePeriodMonths));
-
-        if (principal.Amount <= 0)
-            throw new ArgumentException("Principal must be positive.", nameof(principal));
-
-        if (interestRate.Rate.Fraction < 0)
-            throw new ArgumentException("Interest rate must be non-negative.", nameof(interestRate));
-
-        if (termMonths <= 0)
-            throw new ArgumentException("Term must be positive.", nameof(termMonths));
-
-        // Calculate monthly rate from annual rate
-        var monthlyRate = interestRate.Rate / 12;
-        var currency = principal.Currency;
-
-        var items = new List<PaymentScheduleItem>();
-        decimal remainingBalance = principal.Amount;
+        ScheduleDates.Validate(principal, interestRate, termMonths, startDate, gracePeriodMonths, firstPaymentDate);
+        LocalDate[] dates = Enumerable.Range(1, termMonths)
+            .Select(i => ScheduleDates.Contractual(startDate, i, firstPaymentDate)).ToArray();
+        Money payment = FindPayment(principal, interestRate, dates, startDate, gracePeriodMonths);
+        Money balance = principal;
+        List<PaymentScheduleItem> items = [];
         LocalDate previousDate = startDate;
-
-        int amortizationPeriods = termMonths - gracePeriodMonths;
-        decimal totalPayment;
-
-        if (monthlyRate.Fraction == 0)
+        for (int i = 0; i < dates.Length; i++)
         {
-            // Zero interest case - simple equal principal payments
-            totalPayment = principal.Amount / amortizationPeriods;
+            Money interest = _interestCalculator.Calculate(balance, interestRate, previousDate, dates[i]);
+            if (i >= gracePeriodMonths && i < dates.Length - 1 && payment < interest)
+                throw new ArgumentException("This schedule would require negative amortization, which is not supported.", nameof(interestRate));
+            Money portion = i < gracePeriodMonths ? Money.Zero(principal.Currency)
+                : i == dates.Length - 1 ? balance : PrincipalPortion(payment, interest, balance);
+            items.Add(new PaymentScheduleItem(i + 1, ScheduleDates.Payable(dates[i], holidayCalendar),
+                portion, interest, portion + interest, dates[i]));
+            balance -= portion;
+            previousDate = dates[i];
         }
-        else
-        {
-            // Annuity formula: M = P * r * (1+r)^n / ((1+r)^n - 1)
-            decimal rate = monthlyRate.Fraction;
-            decimal factor = DecimalPower(1m + rate, amortizationPeriods);
-            totalPayment = principal.Amount * rate * factor / (factor - 1m);
-        }
-
-        // Count amortization periods to track which is the last one
-        int amortizationCount = 0;
-
-        for (int i = 1; i <= termMonths; i++)
-        {
-            var paymentDate = startDate.PlusMonths(i);
-
-            if (i <= gracePeriodMonths)
-            {
-                // Grace period: interest only
-                Money graceInterestPortion = _interestCalculator.Calculate(
-                    new Money(remainingBalance, currency), interestRate, previousDate, paymentDate);
-
-                items.Add(new PaymentScheduleItem(
-                    i, paymentDate, Money.Zero(currency), graceInterestPortion, graceInterestPortion));
-
-                previousDate = paymentDate;
-                continue;
-            }
-
-            // Track amortization period number
-            amortizationCount++;
-            bool isLastAmortization = amortizationCount == amortizationPeriods;
-
-            // Interest on current balance
-            Money interestPortion = _interestCalculator.Calculate(
-                new Money(remainingBalance, currency), interestRate, previousDate, paymentDate);
-
-            // Calculate principal portion
-            decimal principalPortion = totalPayment - interestPortion.Amount;
-
-            // Last amortization period: pay remaining balance (absorbs all rounding)
-            if (isLastAmortization)
-            {
-                principalPortion = remainingBalance;
-            }
-            else
-            {
-                // Ensure principal portion is non-negative and doesn't exceed remaining balance
-                if (principalPortion < 0)
-                {
-                    principalPortion = 0m;
-                }
-                else if (principalPortion > remainingBalance)
-                {
-                    principalPortion = remainingBalance;
-                }
-
-                // Round principal portion to 2 decimal places
-                principalPortion = Math.Round(principalPortion, 2, MidpointRounding.ToEven);
-            }
-
-            Money principalMoney = new Money(principalPortion, currency);
-            Money totalMoney = principalMoney + interestPortion;
-
-            // Update balance with rounded value
-            remainingBalance -= principalPortion;
-
-            // Safety check: ensure balance doesn't go negative from rounding
-            if (remainingBalance < 0)
-            {
-                remainingBalance = 0;
-            }
-
-            items.Add(new PaymentScheduleItem(
-                i, paymentDate, principalMoney, interestPortion, totalMoney));
-
-            previousDate = paymentDate;
-        }
-
         return items;
     }
 
-    private static decimal DecimalPower(decimal baseValue, int exponent)
+    private Money FindPayment(Money principal, InterestRate rate, LocalDate[] dates,
+        LocalDate startDate, int grace)
     {
-        decimal result = 1m;
-        for (int i = 0; i < exponent; i++)
+        Money low = Money.Zero(principal.Currency);
+        Money high = principal;
+        // Paying principal plus the largest full-balance interest charge is an upper bound.
+        for (int i = grace; i < dates.Length; i++)
         {
-            result *= baseValue;
+            Money candidate = principal + _interestCalculator.Calculate(principal, rate,
+                i == 0 ? startDate : dates[i - 1], dates[i]);
+            if (candidate > high)
+                high = candidate;
         }
-        return result;
+        while ((high - low).Amount > 0.01m)
+        {
+            Money mid = low + (high - low) / 2m;
+            Money balance = principal;
+            bool coversInterest = true;
+            for (int i = grace; i < dates.Length && balance.Amount > 0; i++)
+            {
+                Money interest = _interestCalculator.Calculate(balance, rate,
+                    i == 0 ? startDate : dates[i - 1], dates[i]);
+                if (mid < interest)
+                {
+                    coversInterest = false;
+                    break;
+                }
+                balance -= PrincipalPortion(mid, interest, balance);
+            }
+            if (!coversInterest || balance.Amount > 0)
+                low = mid;
+            else
+                high = mid;
+        }
+        return high;
+    }
+
+    private static Money PrincipalPortion(Money payment, Money interest, Money balance)
+    {
+        Money portion = payment - interest;
+        return portion.Amount < 0 ? Money.Zero(balance.Currency) : portion > balance ? balance : portion;
     }
 }
