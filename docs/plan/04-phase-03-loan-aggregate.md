@@ -4,7 +4,7 @@
 
 **Goal:** Model the loan lifecycle with rigorous state transitions and event sourcing.
 
-**Current status (2026-09-18):** PostgreSQL-backed creation/replay and idempotency pass six Testcontainers scenarios, including persisted activation and stale-writer rejection. `Disbursed` to `Active` is the first completed Application/Marten lifecycle workflow. The next bounded candidate is persisted `ApplyAging`, subject to explicit owner approval. Phase 2 is complete, including its whole-Domain quality gates and owner financial-contract sign-off.
+**Current status (2026-09-18):** PostgreSQL-backed creation/replay and idempotency pass nine Testcontainers scenarios. Persisted activation and aging cover grace, past due, cure, default, the Active no-op and stale-writer rejection through Application/Marten workflows. Terminal transition workflows, projections and historical queries remain. The next bounded candidate is a first read-model projection, subject to explicit owner approval and the outstanding projection-lifecycle decisions. Phase 2 is complete, including its whole-Domain quality gates and owner financial-contract sign-off.
 
 ## Week 7 — Loan Aggregate
 

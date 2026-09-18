@@ -4,7 +4,7 @@ An open-source loan servicing platform for .NET, with planned AI support for cre
 
 ## Current status
 
-The domain library implements interest calculations, day-count conventions, payment schedules, dated APRC and the loan lifecycle aggregate. Phase 3 now has database-verified idempotent loan creation/replay plus the first persisted lifecycle workflow (`Disbursed` to `Active`) with optimistic concurrency. Phase 2 is complete: implementation and automated gates pass, and the owner signed off the financial contracts on 2026-09-18. This product acceptance is not legal or regulatory certification. HTTP operations, daily batch jobs, MCP tools and AI agents remain scaffolding or planned work.
+The domain library implements interest calculations, day-count conventions, payment schedules, dated APRC and the loan lifecycle aggregate. Phase 3 now has database-verified idempotent loan creation/replay plus persisted activation and aging workflows with optimistic concurrency. Aging covers grace, past-due, default, cure and the documented Active no-op. Phase 2 is complete: implementation and automated gates pass, and the owner signed off the financial contracts on 2026-09-18. This product acceptance is not legal or regulatory certification. HTTP operations, daily batch jobs, MCP tools and AI agents remain scaffolding or planned work.
 
 See [delivery status](docs/status.md), [current architecture](docs/architecture/current-state.md) and the [development roadmap](docs/plan/README.md). Implemented scope and future scope are recorded separately.
 
@@ -31,7 +31,7 @@ Compose starts PostgreSQL, Qdrant and Jaeger. It does not start the application 
 | Location | Responsibility |
 |---|---|
 | src/Promissio.Domain | Pure financial domain library, NodaTime only |
-| src/Promissio.Application | Loan creation orchestration and persistence ports; other workflows remain scaffolding |
+| src/Promissio.Application | Loan creation, activation and aging orchestration plus persistence ports |
 | src/Promissio.Infrastructure | Marten loan event persistence and integration scaffolding |
 | src/Promissio.Api.Origination and src/Promissio.Api.Servicing | HTTP host shells |
 | src/Promissio.BatchProcessor | Generic host executable |

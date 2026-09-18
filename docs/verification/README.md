@@ -14,7 +14,7 @@ Use `-NoRestore` only after a successful restore for the same checkout. Local de
 4. Local Markdown file links in maintained documentation and forwarding pages. Historical bodies, external URLs and anchors are excluded.
 5. Benchmark case discovery, without running performance measurements.
 
-These are baseline checks. Empty test projects do not establish coverage. Phase 3 now includes real PostgreSQL integration scenarios; endpoint failure modes, batch idempotency and AI evaluations are not yet enforced by this script. Phase 2 coverage and mutation gates use the separate command below.
+These are baseline checks. Empty test projects do not establish coverage. Phase 3 now includes real PostgreSQL integration scenarios for creation, activation and aging; endpoint failure modes, batch idempotency and AI evaluations are not yet enforced by this script. Phase 2 coverage and mutation gates use the separate command below.
 
 ## Phase 2 assurance
 
@@ -46,6 +46,7 @@ Performance runs are described in the [benchmark guide](../../benchmarks/README.
 
 ## Evidence
 
+- [2026-09-18 Phase 3 persisted aging](2026-09-18-phase-3-aging.md)
 - [2026-09-18 Phase 3 PostgreSQL and activation](2026-09-18-phase-3-activation.md)
 - [2026-09-18 Phase 2 completion](2026-09-18-phase-2-completion.md)
 - [2026-09-18 current implementation status](2026-09-18-current-status.md)
