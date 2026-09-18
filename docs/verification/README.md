@@ -36,6 +36,7 @@ Performance runs are described in the [benchmark guide](../../benchmarks/README.
 
 ## Evidence
 
+- [2026-09-18 current implementation status](2026-09-18-current-status.md)
 - [2026-09-16 Phase 3 T2 creation and replay](2026-09-16-phase-3-t2.md)
 - [2026-09-10 structure alignment](2026-09-10-structure-alignment.md)
 - [Historical audits](../audits/README.md)
