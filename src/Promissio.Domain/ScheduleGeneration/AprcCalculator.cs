@@ -51,26 +51,32 @@ public class AprcCalculator : IAprcCalculator
         for (int i = 0; i < maxIterations; i++)
         {
             mid = (low + high) / 2.0m;
-            decimal pv = 0m;
+
+            // The discount factor (1+mid)^period can vastly exceed decimal.MaxValue during early
+            // bisection iterations on long schedules (e.g. (1+2.5)^360 ~ 10^150). The bisection bounds
+            // themselves stay small and well within decimal range, so only this intermediate search
+            // computation needs double; the converged `mid` is still used to produce a decimal result below.
+            double pv = 0d;
 
             if (Math.Abs(mid) < 1e-9m)
             {
                 foreach (var item in materializedSchedule)
                 {
-                    pv += item.TotalPayment.Amount;
+                    pv += (double)item.TotalPayment.Amount;
                 }
             }
             else
             {
+                double midDouble = (double)mid;
                 foreach (var item in materializedSchedule)
                 {
                     // Use the period number as the exponent to remain consistent with schedule generation logic.
                     // This ensures that for standard annuities, the solver finds the exact nominal rate.
-                    pv += item.TotalPayment.Amount / DecimalPower(1m + mid, item.Period);
+                    pv += (double)item.TotalPayment.Amount / Math.Pow(1d + midDouble, item.Period);
                 }
             }
 
-            if (pv > principal.Amount)
+            if (pv > (double)principal.Amount)
             {
                 low = mid;
             }

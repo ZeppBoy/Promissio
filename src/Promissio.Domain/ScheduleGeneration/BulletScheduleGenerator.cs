@@ -48,20 +48,6 @@ public class BulletScheduleGenerator : IScheduleGenerator
         LocalDate previousDate = startDate;
 
         int amortizationPeriods = termMonths - gracePeriodMonths;
-        decimal totalPayment;
-
-        if (interestRate.Rate.Fraction == 0)
-        {
-            // Zero interest case - simple equal principal payments
-            totalPayment = principal.Amount / amortizationPeriods;
-        }
-        else
-        {
-            // Bullet formula: Total payment at the end of each period
-            decimal rate = interestRate.Rate.Fraction / 12;
-            decimal factor = DecimalPower(1m + rate, amortizationPeriods);
-            totalPayment = principal.Amount * rate * factor / (factor - 1m);
-        }
 
         // Count amortization periods to track which is the last one
         int amortizationCount = 0;
@@ -87,42 +73,18 @@ public class BulletScheduleGenerator : IScheduleGenerator
             amortizationCount++;
             bool isLastAmortization = amortizationCount == amortizationPeriods;
 
-            // Interest on current balance
+            // Interest on the full outstanding balance (bullet: balance never amortizes early)
             Money interestPortion = _interestCalculator.Calculate(
                 new Money(remainingBalance, currency), interestRate, previousDate, paymentDate);
 
-            // Calculate principal portion
-            decimal principalPortion = totalPayment - interestPortion.Amount;
+            // Bullet: principal stays at full balance until the balloon payment at maturity
+            Money principalMoney = isLastAmortization
+                ? new Money(remainingBalance, currency)
+                : Money.Zero(currency);
 
-            // Last amortization period: pay remaining balance (absorbs all rounding)
-            if (isLastAmortization)
-            {
-                principalPortion = remainingBalance;
-            }
-            else
-            {
-                // Ensure principal portion is non-negative and doesn't exceed remaining balance
-                if (principalPortion < 0)
-                {
-                    principalPortion = 0m;
-                }
-                else if (principalPortion > remainingBalance)
-                {
-                    principalPortion = remainingBalance;
-                }
-
-                // Round principal portion to 2 decimal places
-                principalPortion = Math.Round(principalPortion, 2, MidpointRounding.ToEven);
-            }
-
-            Money principalMoney = new Money(principalPortion, currency);
             Money totalMoney = principalMoney + interestPortion;
 
-            // Update balance with rounded value
-            remainingBalance -= principalPortion;
-
-            // Safety check: ensure balance doesn't go negative from rounding
-            if (remainingBalance < 0)
+            if (isLastAmortization)
             {
                 remainingBalance = 0;
             }
@@ -134,15 +96,5 @@ public class BulletScheduleGenerator : IScheduleGenerator
         }
 
         return items;
-    }
-
-    private static decimal DecimalPower(decimal baseValue, int exponent)
-    {
-        decimal result = 1m;
-        for (int i = 0; i < exponent; i++)
-        {
-            result *= baseValue;
-        }
-        return result;
     }
 }
