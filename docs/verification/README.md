@@ -14,7 +14,17 @@ Use `-NoRestore` only after a successful restore for the same checkout. Local de
 4. Local Markdown file links in maintained documentation and forwarding pages. Historical bodies, external URLs and anchors are excluded.
 5. Benchmark case discovery, without running performance measurements.
 
-These are baseline checks. Empty test projects do not establish coverage. Phase 3 now includes real PostgreSQL integration scenarios; endpoint failure modes, batch idempotency, AI evaluations, coverage targets and mutation scores are not yet enforced by this script.
+These are baseline checks. Empty test projects do not establish coverage. Phase 3 now includes real PostgreSQL integration scenarios; endpoint failure modes, batch idempotency and AI evaluations are not yet enforced by this script. Phase 2 coverage and mutation gates use the separate command below.
+
+## Phase 2 assurance
+
+Restore the pinned Microsoft coverage and Stryker tools, run the clean Domain suite with the built-in collector, report Phase 2 coverage, and enforce the project-wide Domain coverage and mutation gates:
+
+```powershell
+pwsh ./tools/verify-phase2.ps1
+```
+
+The script enforces at least 90% line coverage across `Promissio.Domain`, reports the Phase 2 subset separately, and retains the configured 80% Stryker break threshold for an unfiltered Domain mutation run. Use `-NoRestore` only after restoring both project dependencies and local tools for the same checkout. The coverage conversion follows the [Microsoft dotnet-coverage guidance](https://learn.microsoft.com/dotnet/core/additional-tools/dotnet-coverage); mutation execution follows the [Stryker.NET configuration](https://stryker-mutator.io/docs/stryker-net/configuration/).
 
 ## Optional mutation verification
 
@@ -36,6 +46,7 @@ Performance runs are described in the [benchmark guide](../../benchmarks/README.
 
 ## Evidence
 
+- [2026-09-18 Phase 2 completion](2026-09-18-phase-2-completion.md)
 - [2026-09-18 current implementation status](2026-09-18-current-status.md)
 - [2026-09-16 Phase 3 T2 creation and replay](2026-09-16-phase-3-t2.md)
 - [2026-09-10 structure alignment](2026-09-10-structure-alignment.md)

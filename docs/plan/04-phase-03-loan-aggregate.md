@@ -4,7 +4,7 @@
 
 **Goal:** Model the loan lifecycle with rigorous state transitions and event sourcing.
 
-**Next active task:** execute the T2 PostgreSQL integration tests on a Docker-capable host, then add persisted lifecycle transitions one approved command at a time. The owner has deferred unfinished Phase 2 assurance work; its acceptance targets remain unchanged.
+**Next active task:** execute the T2 PostgreSQL integration tests on a Docker-capable host, then add persisted lifecycle transitions one approved command at a time. Phase 2 implementation and automated assurance, including the whole-Domain quality gates, are complete; human financial review remains separate.
 
 ## Week 7 — Loan Aggregate
 

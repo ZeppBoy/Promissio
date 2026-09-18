@@ -1,5 +1,7 @@
 # Current implementation status verification — 2026-09-18
 
+> Superseded for the current working tree by the [Phase 2 completion verification](2026-09-18-phase-2-completion.md). This file remains evidence of the earlier `075840d` merge state.
+
 Scope: confirm the mainline implementation state after Phase 3 T2 loan creation and Marten persistence were merged, then reconcile the result with the newer remote merge.
 
 Assessed commits: `2fe5ded` was the last green local baseline. After fetching, `origin/main` advanced to merge commit `075840d`; the documentation commit is applied on top without changing production code.
