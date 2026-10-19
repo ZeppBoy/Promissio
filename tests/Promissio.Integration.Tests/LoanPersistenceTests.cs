@@ -5,10 +5,12 @@ using NodaTime;
 using Promissio.Application.LoanActivation;
 using Promissio.Application.LoanAging;
 using Promissio.Application.LoanCreation;
+using Promissio.Application.LoanStateQueries;
 using Promissio.Domain.Calculations.DayCounts;
 using Promissio.Domain.Loan;
 using Promissio.Domain.ValueObjects;
 using Promissio.Infrastructure;
+using Promissio.Infrastructure.LoanPersistence;
 using Testcontainers.PostgreSql;
 using Xunit;
 using LoanRoot = Promissio.Domain.Loan.Loan;
@@ -21,9 +23,17 @@ public sealed class PostgreSqlLoanFixture : IAsyncLifetime
         .Build();
     private ServiceProvider? _serviceProvider;
     private ILoanRepository? _repository;
+    private ILoanStateReader? _stateReader;
 
     public ILoanRepository Repository =>
         _repository ?? throw new InvalidOperationException("The test fixture has not been initialized.");
+
+    public ILoanStateReader StateReader =>
+        _stateReader ?? throw new InvalidOperationException("The test fixture has not been initialized.");
+
+    public IDocumentStore Store =>
+        _serviceProvider?.GetRequiredService<IDocumentStore>()
+        ?? throw new InvalidOperationException("The test fixture has not been initialized.");
 
     public async Task InitializeAsync()
     {
@@ -36,6 +46,7 @@ public sealed class PostgreSqlLoanFixture : IAsyncLifetime
         IDocumentStore store = _serviceProvider.GetRequiredService<IDocumentStore>();
         await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
         _repository = _serviceProvider.GetRequiredService<ILoanRepository>();
+        _stateReader = _serviceProvider.GetRequiredService<ILoanStateReader>();
     }
 
     public async Task DisposeAsync()
@@ -51,6 +62,135 @@ public sealed class LoanPersistenceTests(PostgreSqlLoanFixture fixture)
     : IClassFixture<PostgreSqlLoanFixture>
 {
     private ILoanRepository Repository => fixture.Repository;
+    private GetLoanStateQueryHandler StateQuery => new(fixture.StateReader);
+
+    [Fact]
+    public async Task StateQuery_CreationIsVisibleImmediately()
+    {
+        LoanRoot loan = CreateLoan(Guid.NewGuid());
+
+        LoanCreationResult created = await Repository.CreateAsync(loan, CancellationToken.None);
+        LoanStateView? view = await StateQuery.Handle(
+            new GetLoanStateQuery(created.LoanId), CancellationToken.None);
+        LoanStateView? missing = await StateQuery.Handle(
+            new GetLoanStateQuery(LoanId.New()), CancellationToken.None);
+
+        view.Should().Be(new LoanStateView(created.LoanId, LoanState.Disbursed, null));
+        missing.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task StateQuery_TracksActivationAgingCureAndDefaultImmediately()
+    {
+        LoanRoot loan = CreateLoan(Guid.NewGuid());
+        LoanCreationResult created = await Repository.CreateAsync(loan, CancellationToken.None);
+        await Activate(created.LoanId, loan.DisbursementDate.PlusDays(1));
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, LoanState.Active, null));
+
+        ApplyLoanAgingCommandHandler aging = new(Repository);
+        await aging.Handle(CreateAgingCommand(created.LoanId, 1, 5), CancellationToken.None);
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, LoanState.InGrace, 1));
+
+        await aging.Handle(CreateAgingCommand(created.LoanId, 5, 5), CancellationToken.None);
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, LoanState.PastDue, 5));
+
+        await aging.Handle(CreateAgingCommand(created.LoanId, 7, 5), CancellationToken.None);
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, LoanState.PastDue, 7));
+
+        await aging.Handle(CreateAgingCommand(created.LoanId, 0), CancellationToken.None);
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, LoanState.Active, null));
+
+        await aging.Handle(CreateAgingCommand(created.LoanId, 90), CancellationToken.None);
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, LoanState.Defaulted, 90));
+    }
+
+    [Fact]
+    public async Task StateProjection_RebuildRestoresViewFromEventHistory()
+    {
+        LoanRoot loan = CreateLoan(Guid.NewGuid());
+        LoanCreationResult created = await Repository.CreateAsync(loan, CancellationToken.None);
+        await Activate(created.LoanId, loan.DisbursementDate.PlusDays(1));
+        ApplyLoanAgingCommandHandler aging = new(Repository);
+        await aging.Handle(CreateAgingCommand(created.LoanId, 3), CancellationToken.None);
+        LoanStateView expected = await ReadState(created.LoanId);
+
+        await using (IDocumentSession session = fixture.Store.LightweightSession())
+        {
+            session.Delete<LoanStateDocument>(created.LoanId.Value);
+            await session.SaveChangesAsync(CancellationToken.None);
+        }
+        (await StateQuery.Handle(new GetLoanStateQuery(created.LoanId), CancellationToken.None))
+            .Should().BeNull();
+
+        using var daemon = await fixture.Store.BuildProjectionDaemonAsync();
+        await daemon.RebuildProjectionAsync("LoanState", CancellationToken.None);
+
+        (await ReadState(created.LoanId)).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task StateQuery_StaleWriterDoesNotChangeTheView()
+    {
+        LoanRoot loan = CreateLoan(Guid.NewGuid());
+        LoanCreationResult created = await Repository.CreateAsync(loan, CancellationToken.None);
+        await Activate(created.LoanId, loan.DisbursementDate.PlusDays(1));
+        PersistedLoan firstWriter = await LoadRequired(created.LoanId);
+        PersistedLoan staleWriter = await LoadRequired(created.LoanId);
+        firstWriter.Loan.ApplyAging(1, new LocalDate(2026, 9, 12),
+            Instant.FromUtc(2026, 9, 12, 2, 0), Guid.NewGuid());
+        staleWriter.Loan.ApplyAging(2, new LocalDate(2026, 9, 12),
+            Instant.FromUtc(2026, 9, 12, 2, 1), Guid.NewGuid());
+
+        (await Repository.SaveAsync(firstWriter, CancellationToken.None))
+            .Should().Be(LoanSaveStatus.Saved);
+        (await Repository.SaveAsync(staleWriter, CancellationToken.None))
+            .Should().Be(LoanSaveStatus.ConcurrencyConflict);
+
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, LoanState.PastDue, 1));
+    }
+
+    [Theory]
+    [InlineData(LoanState.WrittenOff)]
+    [InlineData(LoanState.Restructured)]
+    [InlineData(LoanState.Recovered)]
+    public async Task StateQuery_TracksTerminalEvents(LoanState terminalState)
+    {
+        LoanRoot loan = CreateLoan(Guid.NewGuid());
+        LoanCreationResult created = await Repository.CreateAsync(loan, CancellationToken.None);
+        await Activate(created.LoanId, loan.DisbursementDate.PlusDays(1));
+        ApplyLoanAgingCommandHandler aging = new(Repository);
+        await aging.Handle(CreateAgingCommand(created.LoanId, 90), CancellationToken.None);
+        PersistedLoan persisted = await LoadRequired(created.LoanId);
+        LocalDate effectiveDate = new(2026, 9, 13);
+        Instant recordedAt = Instant.FromUtc(2026, 9, 13, 2, 0);
+        Guid correlationId = Guid.NewGuid();
+        switch (terminalState)
+        {
+            case LoanState.WrittenOff:
+                persisted.Loan.WriteOff("Approved write-off", effectiveDate, recordedAt, correlationId);
+                break;
+            case LoanState.Restructured:
+                persisted.Loan.Restructure("Approved plan", effectiveDate, recordedAt, correlationId);
+                break;
+            case LoanState.Recovered:
+                persisted.Loan.Recover("Approved recovery", effectiveDate, recordedAt, correlationId);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(terminalState));
+        }
+
+        (await Repository.SaveAsync(persisted, CancellationToken.None))
+            .Should().Be(LoanSaveStatus.Saved);
+        (await ReadState(created.LoanId)).Should().Be(
+            new LoanStateView(created.LoanId, terminalState, 90));
+    }
 
     [Fact]
     public async Task CreateAndLoad_RoundTripsLoanThroughEventStream()
@@ -307,6 +447,10 @@ public sealed class LoanPersistenceTests(PostgreSqlLoanFixture fixture)
     private async Task<PersistedLoan> LoadRequired(LoanId loanId) =>
         await Repository.LoadAsync(loanId, CancellationToken.None)
         ?? throw new InvalidOperationException($"Loan {loanId} was not found.");
+
+    private async Task<LoanStateView> ReadState(LoanId loanId) =>
+        await StateQuery.Handle(new GetLoanStateQuery(loanId), CancellationToken.None)
+        ?? throw new InvalidOperationException($"Loan state view {loanId} was not found.");
 
     private static LoanRoot CreateLoan(
         Guid applicationId,

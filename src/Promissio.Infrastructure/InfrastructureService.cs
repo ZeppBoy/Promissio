@@ -1,9 +1,12 @@
 using JasperFx.Events;
+using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events;
 using Marten.NodaTimePlugin;
 using Microsoft.Extensions.DependencyInjection;
 using Promissio.Application.LoanCreation;
+using Promissio.Application.LoanStateQueries;
+using Promissio.Infrastructure.LoanPersistence;
 
 namespace Promissio.Infrastructure;
 
@@ -32,8 +35,10 @@ public static class InfrastructureService
             options.UseSystemTextJsonForSerialization(configure: settings =>
                 settings.AllowOutOfOrderMetadataProperties = true);
             options.UseNodaTime();
+            options.Projections.Add<LoanStateProjection>(ProjectionLifecycle.Inline);
         });
 
         services.AddScoped<ILoanRepository, LoanPersistence.MartenLoanRepository>();
+        services.AddScoped<ILoanStateReader, MartenLoanStateReader>();
     }
 }

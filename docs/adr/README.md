@@ -10,5 +10,6 @@
 | [0006](0006-origination-servicing-handoff.md) | Accepted | Origination handoff |
 | [0007](0007-persistence-and-concurrency.md) | Accepted for Phase 3 T2; follow-ups required | Persistence and concurrency |
 | [0008](0008-single-tenant-authorization.md) | Proposed; security review required | Authorization scope |
+| [0009](0009-loan-state-projection.md) | Accepted for first Phase 3 read model | Current loan-state projection and event compatibility |
 
 ADRs are append-only. Superseded decisions remain discoverable and link to their replacements. Proposed records do not override accepted records or AGENTS.md.

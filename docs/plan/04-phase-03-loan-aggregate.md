@@ -4,7 +4,7 @@
 
 **Goal:** Model the loan lifecycle with rigorous state transitions and event sourcing.
 
-**Current status (2026-09-18):** PostgreSQL-backed creation/replay and idempotency pass nine Testcontainers scenarios. Persisted activation and aging cover grace, past due, cure, default, the Active no-op and stale-writer rejection through Application/Marten workflows. Terminal transition workflows, projections and historical queries remain. The next bounded candidate is a first read-model projection, subject to explicit owner approval and the outstanding projection-lifecycle decisions. Phase 2 is complete, including its whole-Domain quality gates and owner financial-contract sign-off.
+**Current status (2026-10-19):** PostgreSQL-backed creation/replay, idempotency, activation and aging are verified. The first inline, rebuildable loan-state projection and Application query are implemented under ADR-0009. Terminal transition workflows, active/overdue/portfolio projections and historical queries remain. Phase 2 is complete, including its whole-Domain quality gates and owner financial-contract sign-off.
 
 ## Week 7 — Loan Aggregate
 
