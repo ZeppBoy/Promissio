@@ -2,6 +2,7 @@ using FluentAssertions;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
+using Promissio.Application;
 using Promissio.Application.LoanActivation;
 using Promissio.Application.LoanAging;
 using Promissio.Application.LoanCreation;
@@ -25,11 +26,18 @@ public sealed class PostgreSqlLoanFixture : IAsyncLifetime
     public ILoanRepository Repository =>
         _repository ?? throw new InvalidOperationException("The test fixture has not been initialized.");
 
+    public ServiceProvider Services =>
+        _serviceProvider ?? throw new InvalidOperationException("The test fixture has not been initialized.");
+
+    public string ConnectionString => _postgres.GetConnectionString();
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
 
         ServiceCollection services = new();
+        services.AddLogging();
+        ApplicationService.ConfigureMediatR(services);
         InfrastructureService.ConfigureMarten(services, _postgres.GetConnectionString());
         _serviceProvider = services.BuildServiceProvider();
 

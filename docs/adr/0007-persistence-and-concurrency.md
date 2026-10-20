@@ -1,6 +1,6 @@
 # ADR-0007: Persistence authority and concurrency
 
-**Status:** Accepted for Phase 3 T2 on 2026-09-16. Projection lifecycle and event-schema evolution require follow-up decisions before T6.
+**Status:** Accepted for Phase 3 T2 on 2026-09-16. [ADR-0009](0009-loan-summary-projection.md) records the accepted first-projection lifecycle and event compatibility follow-up on 2026-10-20.
 
 ## Context
 
